@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Steam & EGS Deals</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Шрифты -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <!-- ШАПКА -->
+  <header>
+    <div class="header-brand">
+      <span class="pulse-dot"></span>
+      <h1>GAME DEALS</h1>
+      <span class="sub-badge">ХАЛЯВА & СКИДКИ</span>
+    </div>
+    <div class="header-actions">
+      <!-- Партнерская кнопка пополнения Steam (РФ/СНГ) -->
+      <a href="https://store.steampowered.com" target="_blank" class="topup-btn" id="steam-topup-btn">
+        <span>💳 Пополнить Steam</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- НАВИГАЦИЯ (ТАБЫ) -->
+  <nav class="nav-tabs">
+    <button id="tab-giveaways" class="active">🎁 Халява (0₽)</button>
+    <button id="tab-deals">🔥 Скидки 70%+</button>
+    <button id="tab-search">🔍 Поиск цен</button>
+    <button id="tab-watchlist">⭐️ Избранное</button>
+  </nav>
+
+  <main>
+    <!-- 1. РАЗДЕЛ: ХАЛЯВА И РАЗДАЧИ (EGS + STEAM) -->
+    <section id="view-giveaways">
+      <div class="section-header">
+        <h2>АКТИВНЫЕ РАЗДАЧИ</h2>
+        <span class="badge-free">100% БЕСПЛАТНО</span>
+      </div>
+      <div id="active-giveaways-list" class="giveaways-grid">
+        <div class="loading">Проверяем бесплатные игры в EGS и Steam...</div>
+      </div>
+
+      <div class="section-header" style="margin-top: 24px;">
+        <h2>СКОРО НА РАЗДАЧЕ (СЛЕДУЮЩИЙ ЧЕТВЕРГ)</h2>
+      </div>
+      <div id="upcoming-giveaways-list" class="giveaways-grid">
+        <div class="loading">Загрузка анонсов...</div>
+      </div>
+    </section>
+
+    <!-- 2. РАЗДЕЛ: СКИДКИ 70%+ В STEAM -->
+    <section id="view-deals" style="display:none;">
+      <!-- Фильтры скидок -->
+      <div class="deals-filter-bar">
+        <button class="filter-chip active" data-sort="DealRating">⚡ Топ рейтинг</button>
+        <button class="filter-chip" data-sort="Savings">💥 Макс. скидка</button>
+        <button class="filter-chip" data-sort="Price">🪙 Дешевле всего</button>
+        <button class="filter-chip" data-sort="Metacritic">🏆 Metacritic</button>
+      </div>
+
+      <div id="deals-list" class="deals-grid">
+        <div class="loading">Загружаем горячие скидки из Steam...</div>
+      </div>
+    </section>
+
+    <!-- 3. РАЗДЕЛ: ПОИСК И СРАВНЕНИЕ ЦЕН -->
+    <section id="view-search" style="display:none;">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Введите название игры (напр. Cyberpunk, Witcher)...">
+        <button id="search-btn">Найти</button>
+      </div>
+      <div id="search-results-list" class="deals-grid">
+        <div class="empty">Введите название игры для поиска минимальной цены</div>
+      </div>
+    </section>
+
+    <!-- 4. РАЗДЕЛ: ИЗБРАННОЕ (ВИШЛИСТ) -->
+    <section id="view-watchlist" style="display:none;">
+      <div class="section-header">
+        <h2>МОЙ СПИСОК ОТСЛЕЖИВАНИЯ</h2>
+      </div>
+      <div id="watchlist-items" class="deals-grid">
+        <div class="empty">Вы пока не добавили ни одной игры в избранное</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
