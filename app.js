@@ -287,7 +287,7 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
 // ==========================================
 function switchTab(tab) {
   activeTab = tab;
-  ["giveaways", "deals", "search", "watchlist"].forEach(t => {
+  ["giveaways", "deals", "search", "watchlist", "news"].forEach(t => {
     const btn = document.getElementById(`tab-${t}`);
     const view = document.getElementById(`view-${t}`);
     if (btn) btn.classList.toggle("active", t === tab);
@@ -297,6 +297,40 @@ function switchTab(tab) {
   if (tab === "giveaways") loadGiveaways();
   if (tab === "deals") loadDeals();
   if (tab === "watchlist") renderWatchlist();
+  if (tab === "news") loadNews();
+}
+
+async function loadNews() {
+  const container = document.getElementById("news-list");
+  if (!container) return;
+  if (container.innerHTML.includes("news-card")) return; // Если новости уже загружены, не грузим заново
+
+  container.innerHTML = '<div class="loading">Читаем свежие новости...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/news`);
+    const data = await res.json();
+    
+    if (!data.items || !data.items.length) {
+      container.innerHTML = '<div class="empty">Не удалось найти свежие новости.</div>';
+      return;
+    }
+
+    container.innerHTML = data.items.map(news => {
+      const date = new Date(news.pubDate).toLocaleString("ru-RU", {day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit'});
+      return `
+        <div class="news-card" onclick="openExternalLink('${news.link}', event)">
+          <img class="news-thumb" src="${news.thumbnail}" alt="news">
+          <div class="news-info">
+            <h3 class="news-title">${escapeHtml(news.title)}</h3>
+            <div class="news-date">🕒 ${date}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    container.innerHTML = '<div class="empty">Ошибка загрузки новостей</div>';
+  }
 }
 
 async function loadGiveaways() {
@@ -585,6 +619,7 @@ function init() {
 
   document.getElementById("tab-giveaways")?.addEventListener("click", () => switchTab("giveaways"));
   document.getElementById("tab-deals")?.addEventListener("click", () => switchTab("deals"));
+  document.getElementById("tab-news")?.addEventListener("click", () => switchTab("news"));
   document.getElementById("tab-search")?.addEventListener("click", () => switchTab("search"));
   document.getElementById("tab-watchlist")?.addEventListener("click", () => switchTab("watchlist"));
 
