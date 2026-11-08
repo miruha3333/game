@@ -34,9 +34,10 @@
   <!-- НАВИГАЦИЯ (ТАБЫ) -->
   <nav class="nav-tabs">
     <button id="tab-giveaways" class="active">🎁 Халява (0₽)</button>
-    <button id="tab-deals">🔥 Скидки 70%+</button>
-    <button id="tab-search">🔍 Поиск цен</button>
-    <button id="tab-watchlist">⭐️ Избранное (<span id="watchlist-count">0</span>)</button>
+    <button id="tab-deals">🔥 Скидки</button>
+    <button id="tab-news">📰 Новости</button>
+    <button id="tab-search">🔍 Поиск</button>
+    <button id="tab-watchlist">⭐️ Вишлист (<span id="watchlist-count">0</span>)</button>
   </nav>
 
   <main>
@@ -107,6 +108,17 @@
 
       <div id="watchlist-items" class="deals-grid">
         <div class="empty">Вы пока не добавили ни одной игры в избранное. Нажмите на сердечко на любой карточке!</div>
+      </div>
+    </section>
+
+    <!-- 5. РАЗДЕЛ: НОВОСТИ ИНДУСТРИИ -->
+    <section id="view-news" style="display:none;">
+      <div class="section-header">
+        <h2>ИГРОВЫЕ НОВОСТИ</h2>
+        <span class="badge-free">STOPGAME</span>
+      </div>
+      <div id="news-list" class="deals-grid">
+        <div class="loading">Читаем свежие новости...</div>
       </div>
     </section>
   </main>
