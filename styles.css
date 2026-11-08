@@ -210,6 +210,38 @@ main { padding: 12px 14px; }
   cursor: pointer;
 }
 
+/* ТЕМАТИЧЕСКИЕ ПОДБОРКИ (КОЛЛЕКЦИИ) */
+.collections-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 14px;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.collections-bar::-webkit-scrollbar { display: none; }
+
+.collection-chip {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-hover);
+  color: var(--text-dim);
+  font-family: 'Oswald', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.collection-chip.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
 /* ФИЛЬТРЫ СКИДОК */
 .deals-filter-bar {
   display: flex;
@@ -325,7 +357,7 @@ main { padding: 12px 14px; }
   color: #fff;
 }
 
-/* КНОПКА СЕРДЕЧКА (ИЗБРАННОЕ) */
+/* КНОПКИ НА КАРТОЧКАХ */
 .favorite-btn {
   background: transparent;
   border: none;
@@ -336,7 +368,6 @@ main { padding: 12px 14px; }
 }
 .favorite-btn.active { color: var(--sale-red); }
 
-/* КНОПКА БЫСТРОЙ ПОКУПКИ НА КАРТОЧКЕ */
 .quick-buy-btn {
   padding: 6px 9px;
   border-radius: 8px;
@@ -381,7 +412,7 @@ main { padding: 12px 14px; }
   cursor: pointer;
 }
 
-/* МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ */
+/* ОБЩИЕ СТИЛИ ДЛЯ МОДАЛОК */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -421,6 +452,7 @@ main { padding: 12px 14px; }
   z-index: 10;
 }
 
+/* ДОСЬЕ ИГРЫ В МОДАЛКЕ */
 .modal-video {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -457,7 +489,30 @@ main { padding: 12px 14px; }
   margin-bottom: 12px;
 }
 
-/* ГЛАВНЫЕ КНОПКИ ПОКУПКИ В МОДАЛКЕ */
+/* БЕЙДЖИ САНКЦИЙ (ДОСТУПНОСТЬ В РФ) */
+.sanction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  width: 100%;
+  justify-content: center;
+}
+.sanction-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.sanction-badge.danger {
+  background: rgba(255, 71, 87, 0.15);
+  color: var(--sale-red);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
 .modal-actions-box {
   display: flex;
   flex-direction: column;
@@ -512,7 +567,6 @@ main { padding: 12px 14px; }
   gap: 6px;
   margin-top: 10px;
 }
-
 .store-row {
   display: flex;
   align-items: center;
@@ -524,20 +578,69 @@ main { padding: 12px 14px; }
   cursor: pointer;
 }
 .store-row:active { background: var(--surface-hover); }
+.store-name { font-family: 'Oswald', sans-serif; font-size: 13px; color: #fff; }
+.store-price { font-family: 'Roboto Mono', monospace; font-weight: 700; font-size: 13px; color: var(--accent); }
 
-.store-name {
-  font-family: 'Oswald', sans-serif;
+/* МОДАЛЬНОЕ ОКНО КАЛЬКУЛЯТОРА */
+.calc-box {
+  display: flex;
+  flex-direction: column;
+}
+.calc-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.calc-regions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.calc-region-btn {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-dim);
   font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.calc-region-btn.active {
+  border-color: var(--steam-blue);
   color: #fff;
+  background: rgba(26, 159, 255, 0.15);
 }
-
-.store-price {
+.calc-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: #fff;
+  font-size: 16px;
   font-family: 'Roboto Mono', monospace;
+  outline: none;
+}
+.calc-input:focus { border-color: var(--steam-blue); }
+
+.calc-result-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px dashed var(--accent);
+  text-align: center;
+}
+.calc-result-amount {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 24px;
   font-weight: 700;
-  font-size: 13px;
   color: var(--accent);
+  margin-top: 4px;
 }
 
+/* ПОИСКОВАЯ СТРОКА */
 .search-box {
   display: flex;
   gap: 8px;
