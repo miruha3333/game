@@ -32,7 +32,6 @@ let currentCollection = "all";
 let countdownInterval = null;
 let cachedDeals = [];
 
-// Примерный курс доллара к рублю
 const USD_TO_RUB = 95;
 
 function formatPrice(usd) {
@@ -215,7 +214,6 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
       `;
     }
 
-    // Бейдж санкций
     html += isRestricted 
       ? `<div class="sanction-badge danger">🚫 Недоступно в РФ (Санкции)</div>`
       : `<div class="sanction-badge success">🟢 Доступно в РФ (Можно купить)</div>`;
@@ -380,28 +378,51 @@ function startTimers() {
   countdownInterval = setInterval(update, 1000);
 }
 
-// 5. ТЕМАТИЧЕСКИЕ ПОДБОРКИ И ФИЛЬТРЫ
+// 5. ТЕМАТИЧЕСКИЕ ПОДБОРКИ И ФИЛЬТРЫ (Расширенные словари)
 function applyFiltersAndRender() {
   let filtered = [...cachedDeals];
 
-  // Фильтр по жанрам (поиск ключевых слов в названии игры)
   if (currentCollection === "cheap") {
     filtered = filtered.filter(d => (Number(d.salePriceUsd) * USD_TO_RUB) <= 300);
-  } else if (currentCollection === "coop") {
-    const kws = ["co-op", "coop", "multiplayer", "party", "takes two", "overcooked", "portal", "left 4 dead", "helldivers", "payday", "borderlands", "halo"];
+  } 
+  else if (currentCollection === "coop") {
+    const kws = [
+      "co-op", "coop", "multiplayer", "party", "takes two", "overcooked", "portal", 
+      "left 4 dead", "helldivers", "payday", "borderlands", "halo", "don't starve", 
+      "lethal company", "phasmophobia", "sea of thieves", "a way out", "golf", 
+      "human fall flat", "rainbow six", "ghost recon", "division", "destiny", "warframe", "remnant"
+    ];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
-  } else if (currentCollection === "rpg") {
-    const kws = ["rpg", "witcher", "cyberpunk", "fallout", "scrolls", "dragon", "fantasy", "persona", "yakuza", "tales", "baldur", "mass effect", "souls", "elden"];
+  } 
+  else if (currentCollection === "rpg") {
+    const kws = [
+      "rpg", "witcher", "cyberpunk", "fallout", "elder scrolls", "skyrim", "dragon", 
+      "fantasy", "persona", "yakuza", "tales", "baldur", "mass effect", "souls", "elden", 
+      "bloodborne", "sekiro", "nioh", "diablo", "path of exile", "grim dawn", "final fantasy", 
+      "gothic", "risen", "elex", "kingdom come", "starfield", "outer worlds", "monster hunter"
+    ];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
-  } else if (currentCollection === "horror") {
-    const kws = ["horror", "resident evil", "silent hill", "outlast", "amnesia", "dead space", "fear", "zombie", "evil within", "fnaf", "alien"];
+  } 
+  else if (currentCollection === "horror") {
+    const kws = [
+      "horror", "resident evil", "silent hill", "outlast", "amnesia", "dead space", 
+      "fear", "zombie", "evil within", "fnaf", "alien", "alone in the dark", "alan wake", 
+      "soma", "layers of fear", "phasmophobia", "lethal company", "texas", "dead by daylight", 
+      "call of cthulhu", "vampyr", "dying light", "left 4 dead"
+    ];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
-  } else if (currentCollection === "action") {
-    const kws = ["action", "shooter", "call of duty", "doom", "battlefield", "gta", "red dead", "assassin", "far cry", "batman", "spider-man", "god of war"];
+  } 
+  else if (currentCollection === "action") {
+    const kws = [
+      "action", "shooter", "call of duty", "doom", "battlefield", "gta", "red dead", 
+      "assassin", "far cry", "batman", "spider-man", "god of war", "uncharted", "tomb raider", 
+      "horizon", "days gone", "ghost of tsushima", "devil may cry", "bayonetta", "metal gear", 
+      "hitman", "sniper", "crysis", "wolfenstein", "gears", "max payne", "control", "bioshock", 
+      "dishonored", "mafia", "watch dogs", "just cause", "saints row"
+    ];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
   }
 
-  // Сортировка
   if (currentSort === "Savings") {
     filtered.sort((a, b) => b.savingsPct - a.savingsPct);
   } else if (currentSort === "Price") {
@@ -418,7 +439,7 @@ function renderDealsList(deals) {
   if (!container) return;
 
   if (!deals.length) {
-    container.innerHTML = '<div class="empty">В этой категории пока пусто. Попробуйте другой фильтр.</div>';
+    container.innerHTML = '<div class="empty">В этой категории пока пусто. Попробуйте другой фильтр или обновите позже.</div>';
     return;
   }
 
@@ -536,12 +557,11 @@ function init() {
   const calcInput = document.getElementById("calc-input");
   const calcResult = document.getElementById("calc-result");
   const calcSymbol = document.getElementById("calc-currency-symbol");
-  let calcRegion = "RU"; // RU или KZ
+  let calcRegion = "RU"; 
 
   function updateCalc() {
     const val = Number(calcInput.value) || 0;
-    // Прибавляем ~15% комиссии
-    const finalAmount = Math.round(val * 1.15);
+    const finalAmount = Math.round(val * 1.15); // +15% комиссии
     calcResult.textContent = calcRegion === "RU" ? `${finalAmount} ₽` : `${finalAmount} ₸`;
   }
 
@@ -560,17 +580,14 @@ function init() {
   });
 
   document.getElementById("calc-pay-btn")?.addEventListener("click", () => {
-    // Здесь ваша будущая партнерская ссылка на сервис пополнения
     openExternalLink("https://store.steampowered.com"); 
   });
 
-  // Навигация
   document.getElementById("tab-giveaways")?.addEventListener("click", () => switchTab("giveaways"));
   document.getElementById("tab-deals")?.addEventListener("click", () => switchTab("deals"));
   document.getElementById("tab-search")?.addEventListener("click", () => switchTab("search"));
   document.getElementById("tab-watchlist")?.addEventListener("click", () => switchTab("watchlist"));
 
-  // Подборки (Коллекции)
   document.querySelectorAll(".collections-bar button").forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll(".collections-bar button").forEach(b => b.classList.remove("active"));
@@ -580,7 +597,6 @@ function init() {
     };
   });
 
-  // Сортировка
   document.querySelectorAll(".deals-filter-bar button").forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll(".deals-filter-bar button").forEach(b => b.classList.remove("active"));
@@ -612,7 +628,6 @@ function init() {
     }
   });
 
-  // Закрытие калькулятора по клику на фон
   document.getElementById("calc-modal")?.addEventListener("click", e => {
     if (e.target.id === "calc-modal") e.target.style.display = "none";
   });
