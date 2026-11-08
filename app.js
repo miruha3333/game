@@ -13,6 +13,7 @@ if (window.Telegram?.WebApp) {
 let activeTab = "giveaways";
 let currentSort = "DealRating";
 let countdownInterval = null;
+let cachedDeals = [];
 
 // Примерный курс доллара к рублю
 const USD_TO_RUB = 95;
@@ -69,7 +70,7 @@ function toggleFavorite(gameObj, e) {
 
   saveWatchlist(list);
   if (activeTab === "watchlist") renderWatchlist();
-  if (activeTab === "deals") loadDeals(false);
+  if (activeTab === "deals") renderDealsList(cachedDeals);
 }
 
 function updateWatchlistBadge() {
@@ -91,7 +92,7 @@ function renderWatchlist() {
     return;
   }
 
-  // Расчет суммарной экономии
+  // Расчет общей экономии
   let totalSavingsUsd = 0;
   list.forEach(item => {
     const diff = Math.max(0, item.normalPriceUsd - item.salePriceUsd);
@@ -144,7 +145,7 @@ async function openGameModal(dealId, gameId, steamAppId) {
       </h2>
     `;
 
-    // Трейлер игры
+    // Трейлер
     if (data.trailerVideo) {
       html += `
         <video class="modal-video" controls autoplay muted playsinline>
@@ -280,7 +281,7 @@ async function loadGiveaways() {
   }
 }
 
-// Таймер обратного отсчета: теперь с секундами и тикает каждую секунду
+// Живой таймер с секундами
 function startTimers() {
   if (countdownInterval) clearInterval(countdownInterval);
 
@@ -304,60 +305,79 @@ function startTimers() {
   }
 
   update();
-  countdownInterval = setInterval(update, 1000); // Обновление каждую секунду
+  countdownInterval = setInterval(update, 1000);
 }
 
+// Отрисовка списка скидок
+function renderDealsList(deals) {
+  const container = document.getElementById("deals-list");
+  if (!container) return;
+
+  if (!deals.length) {
+    container.innerHTML = '<div class="empty">Скидок не найдено</div>';
+    return;
+  }
+
+  container.innerHTML = deals.map(d => {
+    const isFav = isFavorite(d.dealId);
+    const safeObj = encodeURIComponent(JSON.stringify({
+      id: d.dealId,
+      gameId: d.gameId,
+      steamAppId: d.steamAppId,
+      title: d.title,
+      thumb: d.thumb,
+      salePriceUsd: d.salePriceUsd,
+      normalPriceUsd: d.normalPriceUsd,
+      savingsPct: d.savingsPct,
+      steamUrl: d.steamUrl
+    }));
+
+    return `
+      <div class="deal-card" onclick="openGameModal('${d.dealId}', '${d.gameId || ''}', '${d.steamAppId || ''}')">
+        <img class="deal-thumb" src="${d.thumb}" alt="${d.title}" onerror="this.style.display='none'">
+        <div class="deal-info">
+          <div class="deal-title">${d.title}</div>
+          <div class="deal-meta">
+            ${d.steamRatingPercent ? `<span>👍 ${d.steamRatingPercent}%</span>` : ''}
+            ${d.metacriticScore ? `<span>🏆 MC: ${d.metacriticScore}</span>` : ''}
+          </div>
+        </div>
+        <div class="deal-pricing">
+          <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(JSON.parse(decodeURIComponent('${safeObj}')), event)">
+            ${isFav ? '❤️' : '🤍'}
+          </button>
+          <div class="deal-prices">
+            <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
+            <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// Загрузка и сортировка скидок
 async function loadDeals(showLoader = true) {
   const container = document.getElementById("deals-list");
   if (!container) return;
   if (showLoader) container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
 
   try {
-    const res = await fetch(`${API_BASE}/api/deals?sortBy=${currentSort}`);
+    const res = await fetch(`${API_BASE}/api/deals`);
     const data = await res.json();
-    const deals = data.deals || [];
+    cachedDeals = data.deals || [];
 
-    if (!deals.length) {
-      container.innerHTML = '<div class="empty">Скидок не найдено</div>';
-      return;
+    // Клиентская сортировка по выбранному фильтру
+    let sorted = [...cachedDeals];
+    if (currentSort === "Savings") {
+      sorted.sort((a, b) => b.savingsPct - a.savingsPct);
+    } else if (currentSort === "Price") {
+      sorted.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
+    } else if (currentSort === "Metacritic") {
+      sorted.sort((a, b) => Number(b.metacriticScore || 0) - Number(a.metacriticScore || 0));
     }
 
-    container.innerHTML = deals.map(d => {
-      const isFav = isFavorite(d.dealId);
-      const safeObj = encodeURIComponent(JSON.stringify({
-        id: d.dealId,
-        gameId: d.gameId,
-        steamAppId: d.steamAppId,
-        title: d.title,
-        thumb: d.thumb,
-        salePriceUsd: d.salePriceUsd,
-        normalPriceUsd: d.normalPriceUsd,
-        savingsPct: d.savingsPct,
-        steamUrl: d.steamUrl
-      }));
-
-      return `
-        <div class="deal-card" onclick="openGameModal('${d.dealId}', '${d.gameId || ''}', '${d.steamAppId || ''}')">
-          <img class="deal-thumb" src="${d.thumb}" alt="${d.title}" onerror="this.style.display='none'">
-          <div class="deal-info">
-            <div class="deal-title">${d.title}</div>
-            <div class="deal-meta">
-              ${d.steamRatingPercent ? `<span>👍 ${d.steamRatingPercent}%</span>` : ''}
-              ${d.metacriticScore ? `<span>🏆 MC: ${d.metacriticScore}</span>` : ''}
-            </div>
-          </div>
-          <div class="deal-pricing">
-            <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(JSON.parse(decodeURIComponent('${safeObj}')), event)">
-              ${isFav ? '❤️' : '🤍'}
-            </button>
-            <div class="deal-prices">
-              <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
-              <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join("");
+    renderDealsList(sorted);
   } catch (err) {
     container.innerHTML = '<div class="empty">Не удалось загрузить скидки</div>';
   }
@@ -409,12 +429,22 @@ function init() {
   document.getElementById("tab-search")?.addEventListener("click", () => switchTab("search"));
   document.getElementById("tab-watchlist")?.addEventListener("click", () => switchTab("watchlist"));
 
+  // Фильтры сортировки скидок
   document.querySelectorAll(".deals-filter-bar button").forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll(".deals-filter-bar button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       currentSort = btn.dataset.sort;
-      loadDeals();
+
+      let sorted = [...cachedDeals];
+      if (currentSort === "Savings") {
+        sorted.sort((a, b) => b.savingsPct - a.savingsPct);
+      } else if (currentSort === "Price") {
+        sorted.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
+      } else if (currentSort === "Metacritic") {
+        sorted.sort((a, b) => Number(b.metacriticScore || 0) - Number(a.metacriticScore || 0));
+      }
+      renderDealsList(sorted);
     };
   });
 
@@ -427,7 +457,6 @@ function init() {
     const modal = document.getElementById("game-modal");
     if (modal) {
       modal.style.display = "none";
-      // Останавливаем видео при закрытии
       const video = modal.querySelector("video");
       if (video) video.pause();
     }
