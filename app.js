@@ -14,7 +14,7 @@ let activeTab = "giveaways";
 let currentSort = "DealRating";
 let countdownInterval = null;
 
-// Примерный курс доллара к рублю для пересчета
+// Примерный курс доллара к рублю
 const USD_TO_RUB = 95;
 
 function formatPrice(usd) {
@@ -144,7 +144,7 @@ async function openGameModal(dealId, gameId, steamAppId) {
       </h2>
     `;
 
-    // Трейлер
+    // Трейлер игры
     if (data.trailerVideo) {
       html += `
         <video class="modal-video" controls autoplay muted playsinline>
@@ -280,6 +280,7 @@ async function loadGiveaways() {
   }
 }
 
+// Таймер обратного отсчета: теперь с секундами и тикает каждую секунду
 function startTimers() {
   if (countdownInterval) clearInterval(countdownInterval);
 
@@ -296,13 +297,14 @@ function startTimers() {
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      el.textContent = `⏳ Осталось: ${days}д ${hours}ч ${minutes}м`;
+      el.textContent = `⏳ Осталось: ${days}д ${hours}ч ${minutes}м ${seconds}с`;
     });
   }
 
   update();
-  countdownInterval = setInterval(update, 60000);
+  countdownInterval = setInterval(update, 1000); // Обновление каждую секунду
 }
 
 async function loadDeals(showLoader = true) {
@@ -311,7 +313,7 @@ async function loadDeals(showLoader = true) {
   if (showLoader) container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
 
   try {
-    const res = await fetch(`${API_BASE}/api/deals?minSavings=70&sortBy=${currentSort}`);
+    const res = await fetch(`${API_BASE}/api/deals?sortBy=${currentSort}`);
     const data = await res.json();
     const deals = data.deals || [];
 
@@ -423,11 +425,20 @@ function init() {
 
   document.getElementById("close-modal-btn")?.addEventListener("click", () => {
     const modal = document.getElementById("game-modal");
-    if (modal) modal.style.display = "none";
+    if (modal) {
+      modal.style.display = "none";
+      // Останавливаем видео при закрытии
+      const video = modal.querySelector("video");
+      if (video) video.pause();
+    }
   });
 
   document.getElementById("game-modal")?.addEventListener("click", e => {
-    if (e.target.id === "game-modal") e.target.style.display = "none";
+    if (e.target.id === "game-modal") {
+      e.target.style.display = "none";
+      const video = e.target.querySelector("video");
+      if (video) video.pause();
+    }
   });
 
   // Кнопка «Поделиться вишлистом» в Telegram
