@@ -100,7 +100,7 @@ nav.nav-tabs::-webkit-scrollbar {
 }
 
 nav.nav-tabs button {
-  padding: 8px 4px;
+  padding: 8px 14px; /* Делаем кнопки чуть шире для удобства пальца */
   font-family: 'Oswald', sans-serif;
   font-size: 11px;
   text-transform: uppercase;
@@ -110,6 +110,7 @@ nav.nav-tabs button {
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0; /* ВОТ ОНО: Строго запрещаем сужаться! */
 }
 
 nav.nav-tabs button.active {
