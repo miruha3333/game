@@ -16,7 +16,6 @@ function escapeHtml(value) {
   }[char]));
 }
 
-// Надежное открытие внешних ссылок внутри Telegram
 function openExternalLink(url, e) {
   if (e) e.stopPropagation();
   if (!url) return;
@@ -29,6 +28,7 @@ function openExternalLink(url, e) {
 
 let activeTab = "giveaways";
 let currentSort = "DealRating";
+let currentCollection = "all";
 let countdownInterval = null;
 let cachedDeals = [];
 
@@ -43,20 +43,33 @@ function formatPrice(usd) {
 }
 
 // ==========================================
-// 1. ИЗБРАННОЕ (WATCHLIST) И ЭКОНОМИЯ
+// 1. ДЕТЕКТОР САНКЦИЙ
+// ==========================================
+const RESTRICTED_KEYWORDS = [
+  "sony", "playstation", "electronic arts", "ea sports", "ubisoft",
+  "assassin's", "far cry", "microsoft", "xbox", "forza", "halo",
+  "rockstar", "gta", "red dead", "capcom", "resident evil", "monster hunter",
+  "square enix", "final fantasy", "sega", "yakuza", "persona", "warner bros",
+  "batman", "hogwarts", "bethesda", "fallout", "elder scrolls", "doom",
+  "activision", "call of duty", "blizzard", "diablo", "warcraft", "2k", "mafia", "borderlands"
+];
+
+function checkSanctions(title, desc) {
+  const text = (String(title || "") + " " + String(desc || "")).toLowerCase();
+  return RESTRICTED_KEYWORDS.some(kw => text.includes(kw));
+}
+
+// ==========================================
+// 2. ИЗБРАННОЕ (WATCHLIST)
 // ==========================================
 function getWatchlist() {
-  try {
-    return JSON.parse(localStorage.getItem("game_deals_watchlist") || "[]");
-  } catch (_) {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem("game_deals_watchlist") || "[]"); } 
+  catch (_) { return []; }
 }
 
 function saveWatchlist(list) {
-  try {
-    localStorage.setItem("game_deals_watchlist", JSON.stringify(list));
-  } catch (_) {}
+  try { localStorage.setItem("game_deals_watchlist", JSON.stringify(list)); } 
+  catch (_) {}
   updateWatchlistBadge();
 }
 
@@ -87,7 +100,7 @@ function toggleFavorite(gameObj, e) {
 
   saveWatchlist(list);
   if (activeTab === "watchlist") renderWatchlist();
-  if (activeTab === "deals") renderDealsList(cachedDeals);
+  if (activeTab === "deals") applyFiltersAndRender();
 }
 
 function updateWatchlistBadge() {
@@ -111,8 +124,7 @@ function renderWatchlist() {
 
   let totalSavingsUsd = 0;
   list.forEach(item => {
-    const diff = Math.max(0, item.normalPriceUsd - item.salePriceUsd);
-    totalSavingsUsd += diff;
+    totalSavingsUsd += Math.max(0, item.normalPriceUsd - item.salePriceUsd);
   });
 
   if (summaryBox && savingsAmountEl) {
@@ -148,7 +160,7 @@ function renderWatchlist() {
 }
 
 // ==========================================
-// 2. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ
+// 3. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ
 // ==========================================
 async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleRaw, thumbRaw) {
   const modal = document.getElementById("game-modal");
@@ -160,7 +172,6 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
 
   modal.style.display = "flex";
   
-  // Мгновенный пре-рендер с обложкой и названием, чтобы окно не было пустым
   content.innerHTML = `
     <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
       ${escapeHtml(title)}
@@ -177,6 +188,8 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
     const steamUrl = finalSteamId ? `https://store.steampowered.com/app/${finalSteamId}` : (dealId ? `https://www.cheapshark.com/redirect?dealID=${dealId}` : "https://store.steampowered.com");
     const searchTitle = data.title || title;
     const keysUrl = `https://plati.market/itm/${encodeURIComponent(searchTitle)}`;
+
+    const isRestricted = checkSanctions(data.title, data.shortDesc);
 
     let html = `
       <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
@@ -202,6 +215,11 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
       `;
     }
 
+    // Бейдж санкций
+    html += isRestricted 
+      ? `<div class="sanction-badge danger">🚫 Недоступно в РФ (Санкции)</div>`
+      : `<div class="sanction-badge success">🟢 Доступно в РФ (Можно купить)</div>`;
+
     html += `
       <div class="lang-badge">
         <span>🌐</span>
@@ -210,6 +228,7 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
     `;
 
     const priceDisplay = currentPriceUsd && currentPriceUsd !== "undefined" ? ` — ${formatPrice(currentPriceUsd)}` : "";
+    
     html += `
       <div class="modal-actions-box">
         <button class="modal-primary-buy-btn" onclick="openExternalLink('${steamUrl}', event)">
@@ -254,7 +273,6 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
 
     content.innerHTML = html;
   } catch (err) {
-    // В случае ошибки оставляем хотя бы картинку и базовые кнопки
     content.innerHTML += `
       <div class="empty">Не удалось подгрузить полное досье.</div>
       <div class="modal-actions-box">
@@ -267,7 +285,7 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
 }
 
 // ==========================================
-// 3. ТАБЫ И ЗАГРУЗКА СПИСКОВ
+// 4. ТАБЫ И ЗАГРУЗКА СПИСКОВ
 // ==========================================
 function switchTab(tab) {
   activeTab = tab;
@@ -336,7 +354,6 @@ async function loadGiveaways() {
   }
 }
 
-// Живой таймер с секундами
 function startTimers() {
   if (countdownInterval) clearInterval(countdownInterval);
 
@@ -363,13 +380,45 @@ function startTimers() {
   countdownInterval = setInterval(update, 1000);
 }
 
-// Отрисовка списка скидок
+// 5. ТЕМАТИЧЕСКИЕ ПОДБОРКИ И ФИЛЬТРЫ
+function applyFiltersAndRender() {
+  let filtered = [...cachedDeals];
+
+  // Фильтр по жанрам (поиск ключевых слов в названии игры)
+  if (currentCollection === "cheap") {
+    filtered = filtered.filter(d => (Number(d.salePriceUsd) * USD_TO_RUB) <= 300);
+  } else if (currentCollection === "coop") {
+    const kws = ["co-op", "coop", "multiplayer", "party", "takes two", "overcooked", "portal", "left 4 dead", "helldivers", "payday", "borderlands", "halo"];
+    filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
+  } else if (currentCollection === "rpg") {
+    const kws = ["rpg", "witcher", "cyberpunk", "fallout", "scrolls", "dragon", "fantasy", "persona", "yakuza", "tales", "baldur", "mass effect", "souls", "elden"];
+    filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
+  } else if (currentCollection === "horror") {
+    const kws = ["horror", "resident evil", "silent hill", "outlast", "amnesia", "dead space", "fear", "zombie", "evil within", "fnaf", "alien"];
+    filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
+  } else if (currentCollection === "action") {
+    const kws = ["action", "shooter", "call of duty", "doom", "battlefield", "gta", "red dead", "assassin", "far cry", "batman", "spider-man", "god of war"];
+    filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
+  }
+
+  // Сортировка
+  if (currentSort === "Savings") {
+    filtered.sort((a, b) => b.savingsPct - a.savingsPct);
+  } else if (currentSort === "Price") {
+    filtered.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
+  } else if (currentSort === "Metacritic") {
+    filtered.sort((a, b) => Number(b.metacriticScore || 0) - Number(a.metacriticScore || 0));
+  }
+
+  renderDealsList(filtered);
+}
+
 function renderDealsList(deals) {
   const container = document.getElementById("deals-list");
   if (!container) return;
 
   if (!deals.length) {
-    container.innerHTML = '<div class="empty">Скидок не найдено</div>';
+    container.innerHTML = '<div class="empty">В этой категории пока пусто. Попробуйте другой фильтр.</div>';
     return;
   }
 
@@ -377,7 +426,6 @@ function renderDealsList(deals) {
     const isFav = isFavorite(d.dealId);
     const buyUrl = d.steamUrl || `https://store.steampowered.com/app/${d.steamAppId || ''}`;
     
-    // Экранируем данные, чтобы не сломать HTML кавычками в названиях
     const safeTitle = encodeURIComponent(d.title || "");
     const safeThumb = encodeURIComponent(d.thumb || "");
     const safeObj = encodeURIComponent(JSON.stringify({
@@ -418,7 +466,6 @@ function renderDealsList(deals) {
   }).join("");
 }
 
-// Загрузка и сортировка скидок
 async function loadDeals(showLoader = true) {
   const container = document.getElementById("deals-list");
   if (!container) return;
@@ -428,17 +475,7 @@ async function loadDeals(showLoader = true) {
     const res = await fetch(`${API_BASE}/api/deals`);
     const data = await res.json();
     cachedDeals = data.deals || [];
-
-    let sorted = [...cachedDeals];
-    if (currentSort === "Savings") {
-      sorted.sort((a, b) => b.savingsPct - a.savingsPct);
-    } else if (currentSort === "Price") {
-      sorted.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
-    } else if (currentSort === "Metacritic") {
-      sorted.sort((a, b) => Number(b.metacriticScore || 0) - Number(a.metacriticScore || 0));
-    }
-
-    renderDealsList(sorted);
+    applyFiltersAndRender();
   } catch (err) {
     container.innerHTML = '<div class="empty">Не удалось загрузить скидки</div>';
   }
@@ -487,35 +524,69 @@ async function handleSearch() {
 }
 
 // ==========================================
-// 4. ЗАПУСК И СЛУШАТЕЛИ СОБЫТИЙ
+// 6. ИНИЦИАЛИЗАЦИЯ И СЛУШАТЕЛИ
 // ==========================================
 function init() {
   updateWatchlistBadge();
 
-  document.getElementById("steam-topup-btn")?.addEventListener("click", (e) => {
-    openExternalLink("https://store.steampowered.com", e);
+  // Логика калькулятора пополнения
+  const calcModal = document.getElementById("calc-modal");
+  const openCalcBtn = document.getElementById("open-calc-btn");
+  const closeCalcBtn = document.getElementById("close-calc-btn");
+  const calcInput = document.getElementById("calc-input");
+  const calcResult = document.getElementById("calc-result");
+  const calcSymbol = document.getElementById("calc-currency-symbol");
+  let calcRegion = "RU"; // RU или KZ
+
+  function updateCalc() {
+    const val = Number(calcInput.value) || 0;
+    // Прибавляем ~15% комиссии
+    const finalAmount = Math.round(val * 1.15);
+    calcResult.textContent = calcRegion === "RU" ? `${finalAmount} ₽` : `${finalAmount} ₸`;
+  }
+
+  if (openCalcBtn) openCalcBtn.onclick = () => { if (calcModal) calcModal.style.display = "flex"; };
+  if (closeCalcBtn) closeCalcBtn.onclick = () => { if (calcModal) calcModal.style.display = "none"; };
+  if (calcInput) calcInput.oninput = updateCalc;
+
+  document.querySelectorAll(".calc-region-btn").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll(".calc-region-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      calcRegion = btn.dataset.region;
+      if (calcSymbol) calcSymbol.textContent = calcRegion === "RU" ? "₽" : "₸";
+      updateCalc();
+    };
   });
 
+  document.getElementById("calc-pay-btn")?.addEventListener("click", () => {
+    // Здесь ваша будущая партнерская ссылка на сервис пополнения
+    openExternalLink("https://store.steampowered.com"); 
+  });
+
+  // Навигация
   document.getElementById("tab-giveaways")?.addEventListener("click", () => switchTab("giveaways"));
   document.getElementById("tab-deals")?.addEventListener("click", () => switchTab("deals"));
   document.getElementById("tab-search")?.addEventListener("click", () => switchTab("search"));
   document.getElementById("tab-watchlist")?.addEventListener("click", () => switchTab("watchlist"));
 
+  // Подборки (Коллекции)
+  document.querySelectorAll(".collections-bar button").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll(".collections-bar button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentCollection = btn.dataset.col;
+      applyFiltersAndRender();
+    };
+  });
+
+  // Сортировка
   document.querySelectorAll(".deals-filter-bar button").forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll(".deals-filter-bar button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       currentSort = btn.dataset.sort;
-
-      let sorted = [...cachedDeals];
-      if (currentSort === "Savings") {
-        sorted.sort((a, b) => b.savingsPct - a.savingsPct);
-      } else if (currentSort === "Price") {
-        sorted.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
-      } else if (currentSort === "Metacritic") {
-        sorted.sort((a, b) => Number(b.metacriticScore || 0) - Number(a.metacriticScore || 0));
-      }
-      renderDealsList(sorted);
+      applyFiltersAndRender();
     };
   });
 
@@ -539,6 +610,11 @@ function init() {
       const video = e.target.querySelector("video");
       if (video) video.pause();
     }
+  });
+
+  // Закрытие калькулятора по клику на фон
+  document.getElementById("calc-modal")?.addEventListener("click", e => {
+    if (e.target.id === "calc-modal") e.target.style.display = "none";
   });
 
   document.getElementById("share-watchlist-btn")?.addEventListener("click", () => {
