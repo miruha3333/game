@@ -24,9 +24,10 @@
       <span class="sub-badge">ХАЛЯВА & СКИДКИ</span>
     </div>
     <div class="header-actions">
-      <a href="https://store.steampowered.com" target="_blank" class="topup-btn" id="steam-topup-btn">
+      <!-- Кнопка теперь открывает внутренний калькулятор -->
+      <button class="topup-btn" id="open-calc-btn">
         <span>💳 Пополнить Steam</span>
-      </a>
+      </button>
     </div>
   </header>
 
@@ -59,6 +60,18 @@
 
     <!-- 2. РАЗДЕЛ: СКИДКИ 70%+ В STEAM -->
     <section id="view-deals" style="display:none;">
+      
+      <!-- Тематические подборки (НОВОЕ) -->
+      <div class="collections-bar">
+        <button class="collection-chip active" data-col="all">Все игры</button>
+        <button class="collection-chip" data-col="cheap">🪙 До 300 ₽</button>
+        <button class="collection-chip" data-col="coop">🤝 Кооп</button>
+        <button class="collection-chip" data-col="rpg">🧙‍♂️ RPG</button>
+        <button class="collection-chip" data-col="horror">👻 Хорроры</button>
+        <button class="collection-chip" data-col="action">💥 Экшен</button>
+      </div>
+
+      <!-- Фильтры сортировки -->
       <div class="deals-filter-bar">
         <button class="filter-chip active" data-sort="DealRating">⚡ Топ рейтинг</button>
         <button class="filter-chip" data-sort="Savings">💥 Макс. скидка</button>
@@ -104,6 +117,41 @@
       <button id="close-modal-btn" class="modal-close">✕</button>
       <div id="modal-content">
         <div class="loading">Загрузка информации об игре...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО КАЛЬКУЛЯТОРА ПОПОЛНЕНИЯ (НОВОЕ) -->
+  <div id="calc-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <button id="close-calc-btn" class="modal-close">✕</button>
+      <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 16px;color:#fff;text-transform:uppercase;">
+        Пополнение Steam
+      </h2>
+      <div class="calc-box">
+        <label class="calc-label">Регион вашего аккаунта:</label>
+        <div class="calc-regions">
+          <button class="calc-region-btn active" data-region="RU">🇷🇺 Россия (₽)</button>
+          <button class="calc-region-btn" data-region="KZ">🇰🇿 Казахстан (₸)</button>
+        </div>
+        
+        <label class="calc-label" style="margin-top:14px;">Сколько нужно получить на баланс?</label>
+        <div style="position:relative;">
+          <input type="number" id="calc-input" class="calc-input" placeholder="Например, 1000" value="1000">
+          <span id="calc-currency-symbol" style="position:absolute;right:14px;top:10px;color:var(--text-dim);font-weight:700;">₽</span>
+        </div>
+        
+        <div class="calc-result-box">
+          <div style="font-size:12px;color:var(--text-dim);">К оплате (с учетом комиссии ~15%):</div>
+          <div id="calc-result" class="calc-result-amount">1 150 ₽</div>
+        </div>
+
+        <button id="calc-pay-btn" class="modal-primary-buy-btn" style="margin-top:14px;background:linear-gradient(135deg, #1f5fce, #0072ff);box-shadow: 0 4px 14px rgba(26, 159, 255, 0.4);">
+          💳 ПЕРЕЙТИ К ОПЛАТЕ
+        </button>
+        <div style="font-size:10px;color:var(--text-dim);text-align:center;margin-top:8px;">
+          Безопасная оплата картами РФ, СБП, Tinkoff Pay
+        </div>
       </div>
     </div>
   </div>
