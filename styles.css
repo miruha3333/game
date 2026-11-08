@@ -79,6 +79,7 @@ header h1 {
   padding: 6px 10px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
 }
 
 /* ТАБЫ НАВИГАЦИИ */
@@ -236,7 +237,7 @@ main { padding: 12px 14px; }
   border-color: var(--steam-blue);
 }
 
-/* СЕТКА СКИДОК STEAM */
+/* СЕТКА СКИДОК */
 .deals-grid {
   display: flex;
   flex-direction: column;
@@ -246,18 +247,19 @@ main { padding: 12px 14px; }
 .deal-card {
   position: relative;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   align-items: center;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 .deal-card:active { background: var(--surface-hover); }
 
 .deal-thumb {
-  width: 90px;
+  width: 86px;
   height: 48px;
   object-fit: cover;
   border-radius: 6px;
@@ -279,13 +281,19 @@ main { padding: 12px 14px; }
 
 .deal-meta {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-top: 3px;
   font-size: 10px;
   color: var(--text-dim);
 }
 
-.deal-pricing { text-align: right; flex-shrink: 0; }
+.deal-pricing { 
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0; 
+}
 
 .deal-discount-badge {
   display: inline-block;
@@ -299,7 +307,6 @@ main { padding: 12px 14px; }
 }
 
 .deal-prices {
-  margin-top: 2px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -328,6 +335,21 @@ main { padding: 12px 14px; }
   padding: 4px;
 }
 .favorite-btn.active { color: var(--sale-red); }
+
+/* КНОПКА БЫСТРОЙ ПОКУПКИ НА КАРТОЧКЕ */
+.quick-buy-btn {
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--steam-blue);
+  background: rgba(26, 159, 255, 0.15);
+  color: #fff;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.quick-buy-btn:active { background: var(--steam-blue); }
 
 /* ПАНЕЛЬ ЭКОНОМИИ ВИШЛИСТА */
 .watchlist-summary {
@@ -435,6 +457,55 @@ main { padding: 12px 14px; }
   margin-bottom: 12px;
 }
 
+/* ГЛАВНЫЕ КНОПКИ ПОКУПКИ В МОДАЛКЕ */
+.modal-actions-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.modal-primary-buy-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #000;
+  font-family: 'Oswald', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+.modal-primary-buy-btn:active { transform: scale(0.98); }
+
+.modal-keys-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--steam-blue);
+  background: rgba(26, 159, 255, 0.15);
+  color: #fff;
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: center;
+}
+.modal-keys-btn:active { background: var(--steam-blue); }
+
 .stores-list {
   display: flex;
   flex-direction: column;
@@ -446,11 +517,13 @@ main { padding: 12px 14px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
+  cursor: pointer;
 }
+.store-row:active { background: var(--surface-hover); }
 
 .store-name {
   font-family: 'Oswald', sans-serif;
