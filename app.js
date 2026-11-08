@@ -10,6 +10,17 @@ if (window.Telegram?.WebApp) {
   }
 }
 
+// Надежное открытие внешних ссылок внутри Telegram
+function openExternalLink(url, e) {
+  if (e) e.stopPropagation();
+  if (!url) return;
+  if (window.Telegram?.WebApp?.openLink) {
+    window.Telegram.WebApp.openLink(url);
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 let activeTab = "giveaways";
 let currentSort = "DealRating";
 let countdownInterval = null;
@@ -64,7 +75,7 @@ function toggleFavorite(gameObj, e) {
       salePriceUsd: Number(gameObj.salePriceUsd || 0),
       normalPriceUsd: Number(gameObj.normalPriceUsd || 0),
       savingsPct: gameObj.savingsPct || 0,
-      steamUrl: gameObj.steamUrl || ""
+      steamUrl: gameObj.steamUrl || (gameObj.steamAppId ? `https://store.steampowered.com/app/${gameObj.steamAppId}` : "")
     });
   }
 
@@ -104,40 +115,51 @@ function renderWatchlist() {
     savingsAmountEl.textContent = `${Math.round(totalSavingsUsd * USD_TO_RUB)} ₽ ($${totalSavingsUsd.toFixed(2)})`;
   }
 
-  container.innerHTML = list.map(d => `
-    <div class="deal-card" onclick="openGameModal('${d.id}', '${d.gameId}', '${d.steamAppId}')">
-      <img class="deal-thumb" src="${d.thumb}" alt="${d.title}" onerror="this.style.display='none'">
-      <div class="deal-info">
-        <div class="deal-title">${d.title}</div>
-        <div class="deal-meta">
-          <span style="color:var(--accent);">Скидка активна!</span>
+  container.innerHTML = list.map(d => {
+    const buyUrl = d.steamUrl || `https://store.steampowered.com/app/${d.steamAppId || ''}`;
+    return `
+      <div class="deal-card" onclick="openGameModal('${d.id}', '${d.gameId}', '${d.steamAppId}', '${d.salePriceUsd}')">
+        <img class="deal-thumb" src="${d.thumb}" alt="${d.title}" onerror="this.style.display='none'">
+        <div class="deal-info">
+          <div class="deal-title">${d.title}</div>
+          <div class="deal-meta">
+            <span style="color:var(--accent);">Скидка активна!</span>
+          </div>
+        </div>
+        <div class="deal-pricing">
+          <div class="deal-prices">
+            <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
+            <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
+          </div>
+          <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">Купить</button>
+          <button class="favorite-btn active" onclick="toggleFavorite({ id: '${d.id}' }, event)">❤️</button>
         </div>
       </div>
-      <div class="deal-pricing">
-        <button class="favorite-btn active" onclick="toggleFavorite({ id: '${d.id}' }, event)">❤️</button>
-        <div class="deal-prices">
-          <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
-          <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
-        </div>
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 // ==========================================
 // 2. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ
 // ==========================================
-async function openGameModal(dealId, gameId, steamAppId) {
+async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd = null) {
   const modal = document.getElementById("game-modal");
   const content = document.getElementById("modal-content");
   if (!modal || !content) return;
 
   modal.style.display = "flex";
-  content.innerHTML = '<div class="loading">Загружаем трейлер, скриншоты и цены во всех магазинах...</div>';
+  content.innerHTML = '<div class="loading">Загружаем трейлер, скриншоты и ссылки на покупку...</div>';
 
   try {
     const res = await fetch(`${API_BASE}/api/game-details?gameId=${encodeURIComponent(gameId || '')}&steamAppId=${encodeURIComponent(steamAppId || '')}`);
     const data = await res.json();
+
+    const finalSteamId = steamAppId || "";
+    const steamUrl = finalSteamId ? `https://store.steampowered.com/app/${finalSteamId}` : (dealId ? `https://www.cheapshark.com/redirect?dealID=${dealId}` : "https://store.steampowered.com");
+    
+    // Ссылка на поиск дешевого ключа
+    const searchTitle = data.title || "game";
+    const keysUrl = `https://plati.market/itm/${encodeURIComponent(searchTitle)}`;
 
     let html = `
       <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
@@ -163,11 +185,24 @@ async function openGameModal(dealId, gameId, steamAppId) {
       `;
     }
 
-    // Русский язык
+    // Блок русского языка
     html += `
       <div class="lang-badge">
         <span>🌐</span>
         <strong>${data.russianSupport || 'Русский язык уточняется'}</strong>
+      </div>
+    `;
+
+    // ГЛАВНЫЕ КНОПКИ ПОКУПКИ
+    const priceDisplay = currentPriceUsd ? ` — ${formatPrice(currentPriceUsd)}` : "";
+    html += `
+      <div class="modal-actions-box">
+        <button class="modal-primary-buy-btn" onclick="openExternalLink('${steamUrl}', event)">
+          <span>🛒 КУПИТЬ В STEAM${priceDisplay}</span>
+        </button>
+        <button class="modal-keys-btn" onclick="openExternalLink('${keysUrl}', event)">
+          <span>🔑 Найти ключ дешевле (Plati / Габестор)</span>
+        </button>
       </div>
     `;
 
@@ -176,30 +211,30 @@ async function openGameModal(dealId, gameId, steamAppId) {
       html += `<p style="font-size:12px;color:var(--text-dim);line-height:1.4;margin:0 0 14px;">${data.shortDesc}</p>`;
     }
 
-    // Исторический рекорд
+    // Исторический рекорд цены
     if (data.cheapestEverUsd) {
       html += `
-        <div style="font-size:11px;color:#f59e0b;font-family:'Roboto Mono',monospace;margin-bottom:10px;">
+        <div style="font-size:11px;color:#f59e0b;font-family:'Roboto Mono',monospace;margin-bottom:12px;">
           📉 Исторический минимум цены: ${formatPrice(data.cheapestEverUsd)}
         </div>
       `;
     }
 
-    // Цены во всех магазинах
+    // Цены в других магазинах (если найдены)
     if (data.prices && data.prices.length) {
       html += `
         <div style="font-family:'Oswald',sans-serif;font-size:13px;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;">
-          Сравнение цен в магазинах:
+          Цены в других магазинах:
         </div>
         <div class="stores-list">
           ${data.prices.map(p => `
-            <a href="${p.dealUrl}" target="_blank" class="store-row" style="text-decoration:none;">
+            <div class="store-row" onclick="openExternalLink('${p.dealUrl}', event)">
               <span class="store-name">${p.storeName}</span>
               <div style="display:flex;align-items:center;gap:8px;">
                 ${p.savingsPct > 0 ? `<span class="deal-discount-badge">-${p.savingsPct}%</span>` : ''}
                 <span class="store-price">${formatPrice(p.salePriceUsd)}</span>
               </div>
-            </a>
+            </div>
           `).join("")}
         </div>
       `;
@@ -250,7 +285,7 @@ async function loadGiveaways() {
             <div class="giveaway-desc">${game.description || "Бесплатная раздача игры"}</div>
             <div class="giveaway-footer">
               <div class="giveaway-timer" data-end-time="${game.endDate}">Загрузка таймера...</div>
-              <a href="${game.storeUrl}" target="_blank" class="claim-btn">Забрать (0₽)</a>
+              <button class="claim-btn" onclick="openExternalLink('${game.storeUrl}', event)">Забрать (0₽)</button>
             </div>
           </div>
         </div>
@@ -320,6 +355,7 @@ function renderDealsList(deals) {
 
   container.innerHTML = deals.map(d => {
     const isFav = isFavorite(d.dealId);
+    const buyUrl = d.steamUrl || `https://store.steampowered.com/app/${d.steamAppId || ''}`;
     const safeObj = encodeURIComponent(JSON.stringify({
       id: d.dealId,
       gameId: d.gameId,
@@ -329,27 +365,29 @@ function renderDealsList(deals) {
       salePriceUsd: d.salePriceUsd,
       normalPriceUsd: d.normalPriceUsd,
       savingsPct: d.savingsPct,
-      steamUrl: d.steamUrl
+      steamUrl: buyUrl
     }));
 
     return `
-      <div class="deal-card" onclick="openGameModal('${d.dealId}', '${d.gameId || ''}', '${d.steamAppId || ''}')">
+      <div class="deal-card" onclick="openGameModal('${d.dealId}', '${d.gameId || ''}', '${d.steamAppId || ''}', '${d.salePriceUsd}')">
         <img class="deal-thumb" src="${d.thumb}" alt="${d.title}" onerror="this.style.display='none'">
         <div class="deal-info">
           <div class="deal-title">${d.title}</div>
           <div class="deal-meta">
+            ${d.savingsPct > 0 ? `<span class="deal-discount-badge">-${d.savingsPct}%</span>` : ''}
             ${d.steamRatingPercent ? `<span>👍 ${d.steamRatingPercent}%</span>` : ''}
             ${d.metacriticScore ? `<span>🏆 MC: ${d.metacriticScore}</span>` : ''}
           </div>
         </div>
         <div class="deal-pricing">
-          <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(JSON.parse(decodeURIComponent('${safeObj}')), event)">
-            ${isFav ? '❤️' : '🤍'}
-          </button>
           <div class="deal-prices">
             <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
             <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
           </div>
+          <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">Купить</button>
+          <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(JSON.parse(decodeURIComponent('${safeObj}')), event)">
+            ${isFav ? '❤️' : '🤍'}
+          </button>
         </div>
       </div>
     `;
@@ -367,7 +405,6 @@ async function loadDeals(showLoader = true) {
     const data = await res.json();
     cachedDeals = data.deals || [];
 
-    // Клиентская сортировка по выбранному фильтру
     let sorted = [...cachedDeals];
     if (currentSort === "Savings") {
       sorted.sort((a, b) => b.savingsPct - a.savingsPct);
@@ -383,6 +420,7 @@ async function loadDeals(showLoader = true) {
   }
 }
 
+// Поиск игры
 async function handleSearch() {
   const input = document.getElementById("search-input");
   const query = input?.value?.trim();
@@ -401,18 +439,22 @@ async function handleSearch() {
       return;
     }
 
-    container.innerHTML = results.map(g => `
-      <div class="deal-card" onclick="openGameModal('${g.cheapestDealId}', '${g.gameId}', '${g.steamAppId}')">
-        <img class="deal-thumb" src="${g.thumb}" alt="${g.title}" onerror="this.style.display='none'">
-        <div class="deal-info">
-          <div class="deal-title">${g.title}</div>
-          <div class="deal-meta"><span>Нажмите для сравнения цен</span></div>
+    container.innerHTML = results.map(g => {
+      const buyUrl = g.steamAppId ? `https://store.steampowered.com/app/${g.steamAppId}` : "https://store.steampowered.com";
+      return `
+        <div class="deal-card" onclick="openGameModal('${g.cheapestDealId || ''}', '${g.gameId || ''}', '${g.steamAppId || ''}', '${g.cheapestPriceUsd}')">
+          <img class="deal-thumb" src="${g.thumb}" alt="${g.title}" onerror="this.style.display='none'">
+          <div class="deal-info">
+            <div class="deal-title">${g.title}</div>
+            <div class="deal-meta"><span>Нажмите для трейлера и цен</span></div>
+          </div>
+          <div class="deal-pricing">
+            <span class="new-price">${formatPrice(g.cheapestPriceUsd)}</span>
+            <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">Купить</button>
+          </div>
         </div>
-        <div class="deal-pricing">
-          <span class="new-price">${formatPrice(g.cheapestPriceUsd)}</span>
-        </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   } catch (err) {
     container.innerHTML = '<div class="empty">Ошибка поиска</div>';
   }
@@ -423,6 +465,12 @@ async function handleSearch() {
 // ==========================================
 function init() {
   updateWatchlistBadge();
+
+  // Кнопка шапки «Пополнить Steam»
+  document.getElementById("steam-topup-btn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternalLink("https://store.steampowered.com");
+  });
 
   document.getElementById("tab-giveaways")?.addEventListener("click", () => switchTab("giveaways"));
   document.getElementById("tab-deals")?.addEventListener("click", () => switchTab("deals"));
@@ -477,11 +525,7 @@ function init() {
     const titles = list.slice(0, 3).map(i => `• ${i.title}`).join("%0A");
     const text = encodeURIComponent(`Смотри, сколько я сэкономил на распродаже игр:%0A${decodeURIComponent(titles)}%0Aи другие со скидками до 90%!`);
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${text}`;
-    if (window.Telegram?.WebApp?.openTelegramLink) {
-      window.Telegram.WebApp.openTelegramLink(shareUrl);
-    } else {
-      window.open(shareUrl, "_blank");
-    }
+    openExternalLink(shareUrl);
   });
 
   switchTab("giveaways");
