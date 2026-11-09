@@ -388,52 +388,64 @@ async function loadGiveaways() {
   const upcomingContainer = document.getElementById("upcoming-giveaways-list");
   if (!activeContainer || !upcomingContainer) return;
 
+  let data = { active: [], upcoming: [] };
   try {
     const res = await fetch(`${API_BASE}/api/giveaways`);
-    const data = await res.json();
-    const activeList = data.active || [];
-    const upcomingList = data.upcoming || [];
+    data = await res.json();
+  } catch (err) {
+    activeContainer.innerHTML = '<div class="empty">Сервер раздач временно недоступен</div>';
+    return;
+  }
 
-    if (!activeList.length) {
-      activeContainer.innerHTML = '<div class="empty">Прямо сейчас нет активных раздач</div>';
-    } else {
-      activeContainer.innerHTML = activeList.map(game => `
-        <div class="giveaway-card">
-          <img class="giveaway-img" src="${game.image}" alt="${escapeHtml(game.title)}" onerror="this.src='https://via.placeholder.com/600x338?text=Free+Game'">
-          <div class="giveaway-body">
-            <h3 class="giveaway-title">${escapeHtml(game.title)}</h3>
-            <div class="giveaway-desc">${escapeHtml(game.description || "Бесплатная раздача игры")}</div>
-            <div class="giveaway-footer">
-              <div class="giveaway-timer" data-end-time="${game.endDate}">Загрузка таймера...</div>
-              <button class="claim-btn" onclick="openExternalLink('${game.storeUrl}', event)">Забрать (0₽)</button>
-            </div>
+  const activeList = data.active || [];
+  const upcomingList = data.upcoming || [];
+
+  // Если прямо сейчас нет активных раздач в EGS
+  if (!activeList.length) {
+    activeContainer.innerHTML = '<div class="empty">Прямо сейчас раздача завершилась. Следующая игра откроется в четверг!</div>';
+  } else {
+    activeContainer.innerHTML = activeList.map(game => `
+      <div class="giveaway-card">
+        <img class="giveaway-img" src="${game.image}" alt="${escapeHtml(game.title)}" onerror="this.src='https://via.placeholder.com/600x338?text=Free+Game'">
+        <div class="giveaway-body">
+          <h3 class="giveaway-title">${escapeHtml(game.title)}</h3>
+          <div class="giveaway-desc">${escapeHtml(game.description || "Бесплатная раздача игры")}</div>
+          <div class="giveaway-footer">
+            <div class="giveaway-timer" data-end-time="${game.endDate || ''}">Загрузка таймера...</div>
+            <button class="claim-btn" onclick="openExternalLink('${game.storeUrl}', event)">Забрать (0₽)</button>
           </div>
         </div>
-      `).join("");
-    }
+      </div>
+    `).join("");
+  }
 
-    if (!upcomingList.length) {
-      upcomingContainer.innerHTML = '<div class="empty">Анонсов следующих раздач пока нет</div>';
-    } else {
-      upcomingContainer.innerHTML = upcomingList.map(game => `
+  if (!upcomingList.length) {
+    upcomingContainer.innerHTML = '<div class="empty">Анонсов следующих раздач пока нет</div>';
+  } else {
+    upcomingContainer.innerHTML = upcomingList.map(game => {
+      let dateStr = "Скоро";
+      try {
+        const d = new Date(game.startDate);
+        if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString("ru-RU");
+      } catch (_) {}
+
+      return `
         <div class="giveaway-card" style="opacity:0.85;">
           <img class="giveaway-img" src="${game.image}" alt="${escapeHtml(game.title)}" onerror="this.src='https://via.placeholder.com/600x338?text=Upcoming+Game'">
           <div class="giveaway-body">
             <h3 class="giveaway-title">${escapeHtml(game.title)}</h3>
             <div class="giveaway-desc">${escapeHtml(game.description || "Скоро на раздаче")}</div>
             <div class="giveaway-footer">
-              <span style="font-size:11px;color:var(--text-dim);">Старт: ${new Date(game.startDate).toLocaleDateString("ru-RU")}</span>
+              <span style="font-size:11px;color:var(--text-dim);">Старт: ${dateStr}</span>
               <span class="badge-free">СКОРО</span>
             </div>
           </div>
         </div>
-      `).join("");
-    }
-
-    startTimers();
-  } catch (err) {
-    activeContainer.innerHTML = '<div class="empty">Не удалось загрузить халяву</div>';
+      `;
+    }).join("");
   }
+
+  try { startTimers(); } catch (_) {}
 }
 
 function startTimers() {
@@ -576,13 +588,20 @@ async function loadDeals(showLoader = true) {
   if (!container) return;
   if (showLoader) container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
 
+  let data = { deals: [] };
   try {
     const res = await fetch(`${API_BASE}/api/deals`);
-    const data = await res.json();
-    cachedDeals = data.deals || [];
-    applyFiltersAndRender();
+    data = await res.json();
   } catch (err) {
-    container.innerHTML = '<div class="empty">Не удалось загрузить скидки</div>';
+    container.innerHTML = '<div class="empty">Не удалось связаться с сервером скидок</div>';
+    return;
+  }
+
+  cachedDeals = data.deals || [];
+  try {
+    applyFiltersAndRender();
+  } catch (renderError) {
+    console.warn("Ошибка отрисовки:", renderError);
   }
 }
 
