@@ -357,20 +357,24 @@ function openNewsModal(index) {
   } catch (_) {}
 
   content.innerHTML = `
-    <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 8px;color:#fff;padding-right:30px;line-height:1.3;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:30px;">
+      <span style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">✍️ РЕДАКЦИЯ GAME DEALS</span>
+      <span style="font-size:11px;color:var(--text-dim);">🕒 ${dateStr}</span>
+    </div>
+
+    <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 12px;color:#fff;line-height:1.3;">
       ${escapeHtml(news.title)}
     </h2>
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;">🕒 ${dateStr}</div>
     
     ${news.thumbnail ? `<img src="${news.thumbnail}" style="width:100%; border-radius:10px; margin-bottom:14px; aspect-ratio:16/9; object-fit:cover;">` : ''}
 
     <div class="news-modal-text">
-      ${news.description || 'Текст новости доступен на сайте источника.'}
+      ${news.description || 'Текст новости формируется.'}
     </div>
 
-    <div class="modal-actions-box">
-      <button class="modal-keys-btn" onclick="openExternalLink('${news.link}', event)">
-        🌐 Читать оригинал на 3DNews
+    <div class="modal-actions-box" style="margin-top:14px;">
+      <button class="modal-primary-buy-btn" onclick="document.getElementById('news-modal').style.display='none'">
+        ✕ ЗАКРЫТЬ СТАТЬЮ
       </button>
     </div>
   `;
