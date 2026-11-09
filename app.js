@@ -153,7 +153,7 @@ function renderWatchlist() {
   }).join("");
 }
 
-// 3. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ
+// 3. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ (МГНОВЕННОЕ ОТКРЫТИЕ БЕЗ ЗАВИСАНИЙ)
 async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleRaw, thumbRaw) {
   const modal = document.getElementById("game-modal");
   const content = document.getElementById("modal-content");
@@ -163,81 +163,87 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
   const thumb = thumbRaw ? decodeURIComponent(thumbRaw) : "";
 
   modal.style.display = "flex";
+
+  const finalSteamId = (steamAppId && steamAppId !== "null" && steamAppId !== "undefined") ? steamAppId : "";
+  const steamUrl = finalSteamId 
+    ? `https://store.steampowered.com/app/${finalSteamId}` 
+    : (dealId ? `https://www.cheapshark.com/redirect?dealID=${dealId}` : `https://store.steampowered.com/search/?term=${encodeURIComponent(title)}`);
   
+  const keysUrl = `https://plati.market/itm/${encodeURIComponent(title)}`;
+  const priceDisplay = currentPriceUsd && currentPriceUsd !== "undefined" ? ` — ${formatPrice(currentPriceUsd)}` : "";
+  const isRestricted = checkSanctions(title, "");
+
+  // МГНОВЕННО показываем заголовок, обложку и кнопки покупки
   content.innerHTML = `
     <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
       ${escapeHtml(title)}
     </h2>
-    ${thumb ? `<img src="${escapeHtml(thumb)}" style="width:100%; border-radius:10px; margin-bottom:12px; aspect-ratio:16/9; object-fit:cover;">` : ""}
-    <div class="loading">Загружаем трейлер, скриншоты и ссылки на покупку...</div>
+
+    <div id="modal-media-box">
+      ${thumb ? `<img src="${escapeHtml(thumb)}" style="width:100%; border-radius:10px; margin-bottom:12px; aspect-ratio:16/9; object-fit:cover;">` : ""}
+    </div>
+
+    ${isRestricted 
+      ? `<div class="sanction-badge danger">🚫 Недоступно в РФ (Санкции)</div>`
+      : `<div class="sanction-badge success">🟢 Доступно в РФ (Можно купить)</div>`}
+
+    <div class="lang-badge">
+      <span>🌐</span>
+      <strong id="modal-lang-text">Русский язык уточняется</strong>
+    </div>
+
+    <div class="modal-actions-box">
+      <button class="modal-primary-buy-btn" onclick="openExternalLink('${steamUrl}', event)">
+        <span>🛒 КУПИТЬ В STEAM${priceDisplay}</span>
+      </button>
+      <button class="modal-keys-btn" onclick="openExternalLink('${keysUrl}', event)">
+        <span>🔑 Найти ключ дешевле (Plati / Габестор)</span>
+      </button>
+    </div>
+
+    <div id="modal-desc-box">
+      <div class="loading" style="padding:10px 0;font-size:12px;">Загружаем трейлер и описание...</div>
+    </div>
   `;
 
+  // Фоном подтягиваем скриншоты и видео, если они доступны
   try {
-    const res = await fetch(`${API_BASE}/api/game-details?gameId=${encodeURIComponent(gameId || '')}&steamAppId=${encodeURIComponent(steamAppId || '')}&title=${encodeURIComponent(title)}`);
+    const res = await fetch(`${API_BASE}/api/game-details?gameId=${encodeURIComponent(gameId || '')}&steamAppId=${encodeURIComponent(finalSteamId)}&title=${encodeURIComponent(title)}`);
     const data = await res.json();
 
-    const finalSteamId = steamAppId || "";
-    const steamUrl = finalSteamId ? `https://store.steampowered.com/app/${finalSteamId}` : (dealId ? `https://www.cheapshark.com/redirect?dealID=${dealId}` : "https://store.steampowered.com");
-    const searchTitle = data.title || title;
-    const keysUrl = `https://plati.market/itm/${encodeURIComponent(searchTitle)}`;
+    const mediaBox = document.getElementById("modal-media-box");
+    const descBox = document.getElementById("modal-desc-box");
+    const langText = document.getElementById("modal-lang-text");
 
-    const isRestricted = checkSanctions(data.title, data.shortDesc);
+    if (langText && data.russianSupport) {
+      langText.textContent = data.russianSupport;
+    }
 
-    let html = `
-      <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
-        ${escapeHtml(data.title || title)}
-      </h2>
-    `;
-
-    if (data.trailerVideo) {
-      html += `
+    if (mediaBox && data.trailerVideo) {
+      mediaBox.innerHTML = `
         <video class="modal-video" controls autoplay muted playsinline>
           <source src="${data.trailerVideo}" type="video/mp4">
         </video>
       `;
-    } else if (thumb) {
-      html += `<img src="${escapeHtml(thumb)}" style="width:100%; border-radius:10px; margin-bottom:12px; aspect-ratio:16/9; object-fit:cover;">`;
     }
 
-    if (data.screenshots && data.screenshots.length) {
-      html += `
-        <div class="screenshot-gallery">
-          ${data.screenshots.map(s => `<img src="${s}" loading="lazy">`).join("")}
-        </div>
-      `;
+    if (descBox) {
+      let extraHtml = "";
+      if (data.screenshots && data.screenshots.length) {
+        extraHtml += `
+          <div class="screenshot-gallery">
+            ${data.screenshots.map(s => `<img src="${s}" loading="lazy">`).join("")}
+          </div>
+        `;
+      }
+      if (data.shortDesc) {
+        extraHtml += `<p style="font-size:12px;color:var(--text-dim);line-height:1.4;margin:10px 0;">${escapeHtml(data.shortDesc)}</p>`;
+      }
+      descBox.innerHTML = extraHtml;
     }
-
-    html += isRestricted 
-      ? `<div class="sanction-badge danger">🚫 Недоступно в РФ (Санкции)</div>`
-      : `<div class="sanction-badge success">🟢 Доступно в РФ (Можно купить)</div>`;
-
-    html += `
-      <div class="lang-badge">
-        <span>🌐</span>
-        <strong>${data.russianSupport || 'Русский язык уточняется'}</strong>
-      </div>
-    `;
-
-    const priceDisplay = currentPriceUsd && currentPriceUsd !== "undefined" ? ` — ${formatPrice(currentPriceUsd)}` : "";
-    
-    html += `
-      <div class="modal-actions-box">
-        <button class="modal-primary-buy-btn" onclick="openExternalLink('${steamUrl}', event)">
-          <span>🛒 КУПИТЬ В STEAM${priceDisplay}</span>
-        </button>
-        <button class="modal-keys-btn" onclick="openExternalLink('${keysUrl}', event)">
-          <span>🔑 Найти ключ дешевле (Plati / Габестор)</span>
-        </button>
-      </div>
-    `;
-
-    if (data.shortDesc) {
-      html += `<p style="font-size:12px;color:var(--text-dim);line-height:1.4;margin:0 0 14px;">${escapeHtml(data.shortDesc)}</p>`;
-    }
-
-    content.innerHTML = html;
-  } catch (err) {
-    content.innerHTML += `<div class="empty">Не удалось подгрузить полное досье.</div>`;
+  } catch (_) {
+    const descBox = document.getElementById("modal-desc-box");
+    if (descBox) descBox.innerHTML = "";
   }
 }
 
