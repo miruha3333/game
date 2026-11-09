@@ -339,8 +339,8 @@ async function loadNews() {
   }
 }
 
-// Открытие статьи во всплывающем окне прямо в приложении (мгновенно, без задержек)
-function openNewsModal(index) {
+// Открытие статьи во всплывающем окне прямо в приложении
+async function openNewsModal(index) {
   const news = cachedNews[index];
   if (!news) return;
 
@@ -356,7 +356,10 @@ function openNewsModal(index) {
     }
   } catch (_) {}
 
-  // Мгновенно выводим заголовок, картинку и ПОЛНЫЙ текст всех абзацев
+  modal.style.display = "flex";
+
+  const initialText = news.fullText || news.description || 'Текст новости формируется.';
+
   content.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:30px;">
       <span style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">✍️ РЕДАКЦИЯ GAME DEALS</span>
@@ -369,8 +372,8 @@ function openNewsModal(index) {
     
     ${news.thumbnail ? `<img src="${news.thumbnail}" style="width:100%; border-radius:10px; margin-bottom:14px; aspect-ratio:16/9; object-fit:cover;">` : ''}
 
-    <div class="news-modal-text">
-      ${news.fullText || `<p>${escapeHtml(news.description || 'Текст новости формируется.')}</p>`}
+    <div id="full-news-body" class="news-modal-text">
+      ${initialText.startsWith('<p>') ? initialText : `<p>${initialText}</p>`}
     </div>
 
     <div class="modal-actions-box" style="margin-top:14px;">
@@ -380,7 +383,17 @@ function openNewsModal(index) {
     </div>
   `;
 
-  modal.style.display = "flex";
+  // Если статья короткая (всего 1 абзац из превью), догружаем полный текст всех абзацев
+  if (initialText.replace(/<[^>]+>/g, "").length < 350 && news.link) {
+    try {
+      const res = await fetch(`${API_BASE}/api/news-details?url=${encodeURIComponent(news.link)}`);
+      const data = await res.json();
+      const bodyEl = document.getElementById("full-news-body");
+      if (bodyEl && data.content && data.content.length > 50) {
+        bodyEl.innerHTML = data.content;
+      }
+    } catch (_) {}
+  }
 }
 
 async function loadGiveaways() {
@@ -393,14 +406,13 @@ async function loadGiveaways() {
     const res = await fetch(`${API_BASE}/api/giveaways`);
     data = await res.json();
   } catch (err) {
-    activeContainer.innerHTML = '<div class="empty">Сервер раздач временно недоступен</div>';
+    activeContainer.innerHTML = '<div class="empty">Не удалось связаться с сервером раздач</div>';
     return;
   }
 
   const activeList = data.active || [];
   const upcomingList = data.upcoming || [];
 
-  // Если прямо сейчас нет активных раздач в EGS
   if (!activeList.length) {
     activeContainer.innerHTML = '<div class="empty">Прямо сейчас раздача завершилась. Следующая игра откроется в четверг!</div>';
   } else {
@@ -445,17 +457,27 @@ async function loadGiveaways() {
     }).join("");
   }
 
-  try { startTimers(); } catch (_) {}
+  startTimers();
 }
 
 function startTimers() {
   if (countdownInterval) clearInterval(countdownInterval);
 
   function update() {
-    document.querySelectorAll(".giveaway-timer[data-end-time]").forEach(el => {
-      const end = new Date(el.dataset.endTime).getTime();
-      const diff = end - Date.now();
+    document.querySelectorAll(".giveaway-timer").forEach(el => {
+      const rawEnd = el.getAttribute("data-end-time");
+      if (!rawEnd || rawEnd === "undefined" || rawEnd === "null" || rawEnd === "") {
+        el.textContent = "⏳ До четверга (19:00 МСК)";
+        return;
+      }
 
+      const end = new Date(rawEnd).getTime();
+      if (isNaN(end)) {
+        el.textContent = "⏳ До четверга (19:00 МСК)";
+        return;
+      }
+
+      const diff = end - Date.now();
       if (diff <= 0) {
         el.textContent = "Раздача завершена";
         return;
@@ -466,7 +488,7 @@ function startTimers() {
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-      el.textContent = `⏳ Осталось: ${days}д ${hours}ч ${minutes}м ${seconds}с`;
+      el.textContent = `⏳ ${days}д ${hours}ч ${minutes}м ${seconds}с`;
     });
   }
 
@@ -586,25 +608,22 @@ function renderDealsList(deals) {
 async function loadDeals(showLoader = true) {
   const container = document.getElementById("deals-list");
   if (!container) return;
-  if (showLoader) container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
+  if (showLoader && !cachedDeals.length) {
+    container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
+  }
 
-  let data = { deals: [] };
   try {
     const res = await fetch(`${API_BASE}/api/deals`);
-    data = await res.json();
+    const data = await res.json();
+    if (data.deals && data.deals.length > 0) {
+      cachedDeals = data.deals;
+    }
   } catch (err) {
-    container.innerHTML = '<div class="empty">Не удалось связаться с сервером скидок</div>';
-    return;
+    console.warn("Ошибка скидок:", err);
   }
 
-  cachedDeals = data.deals || [];
-  try {
-    applyFiltersAndRender();
-  } catch (renderError) {
-    console.warn("Ошибка отрисовки:", renderError);
-  }
+  applyFiltersAndRender();
 }
-
 async function handleSearch() {
   const input = document.getElementById("search-input");
   const query = input?.value?.trim();
