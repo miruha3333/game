@@ -716,6 +716,15 @@ main { padding: 12px 14px; }
   color: var(--steam-blue);
   text-decoration: underline;
 }
+  /* КАРТИНКИ ВНУТРИ ТЕКСТА СТАТЬИ */
+.news-modal-text img {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 12px 0;
+  display: block;
+  object-fit: cover;
+}
 }
 .news-date {
   font-size: 11px;
