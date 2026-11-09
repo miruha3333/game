@@ -303,7 +303,7 @@ function switchTab(tab) {
 async function loadNews() {
   const container = document.getElementById("news-list");
   if (!container) return;
-  if (container.innerHTML.includes("news-card")) return; // Если новости уже загружены, не грузим заново
+  if (container.innerHTML.includes("news-card")) return;
 
   container.innerHTML = '<div class="loading">Читаем свежие новости...</div>';
 
@@ -317,13 +317,20 @@ async function loadNews() {
     }
 
     container.innerHTML = data.items.map(news => {
-      const date = new Date(news.pubDate).toLocaleString("ru-RU", {day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit'});
+      let dateStr = "Сегодня";
+      try {
+        const d = new Date(news.pubDate);
+        if (!isNaN(d.getTime())) {
+          dateStr = d.toLocaleString("ru-RU", { day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit' });
+        }
+      } catch (_) {}
+
       return `
         <div class="news-card" onclick="openExternalLink('${news.link}', event)">
-          <img class="news-thumb" src="${news.thumbnail}" alt="news">
+          <img class="news-thumb" src="${news.thumbnail}" alt="news" onerror="this.src='https://via.placeholder.com/600x338?text=Gaming+News'">
           <div class="news-info">
             <h3 class="news-title">${escapeHtml(news.title)}</h3>
-            <div class="news-date">🕒 ${date}</div>
+            <div class="news-date">🕒 ${dateStr}</div>
           </div>
         </div>
       `;
