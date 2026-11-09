@@ -702,6 +702,20 @@ main { padding: 12px 14px; }
   color: #fff;
   margin: 0 0 6px 0;
   line-height: 1.3;
+  /* ТЕКСТ ВНУТРИ ОКНА НОВОСТИ */
+.news-modal-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-main);
+  margin-bottom: 16px;
+}
+.news-modal-text p {
+  margin: 0 0 12px 0;
+}
+.news-modal-text a {
+  color: var(--steam-blue);
+  text-decoration: underline;
+}
 }
 .news-date {
   font-size: 11px;
