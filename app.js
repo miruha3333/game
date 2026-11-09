@@ -339,8 +339,8 @@ async function loadNews() {
   }
 }
 
-// Открытие статьи во всплывающем окне прямо в приложении
-async function openNewsModal(index) {
+// Открытие статьи во всплывающем окне прямо в приложении (мгновенно, без задержек)
+function openNewsModal(index) {
   const news = cachedNews[index];
   if (!news) return;
 
@@ -356,7 +356,7 @@ async function openNewsModal(index) {
     }
   } catch (_) {}
 
-  // Открываем модалку с шапкой редакции и плашкой ожидания
+  // Мгновенно выводим заголовок, картинку и ПОЛНЫЙ текст всех абзацев
   content.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:30px;">
       <span style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">✍️ РЕДАКЦИЯ GAME DEALS</span>
@@ -369,8 +369,8 @@ async function openNewsModal(index) {
     
     ${news.thumbnail ? `<img src="${news.thumbnail}" style="width:100%; border-radius:10px; margin-bottom:14px; aspect-ratio:16/9; object-fit:cover;">` : ''}
 
-    <div id="full-news-body" class="news-modal-text">
-      <div class="loading" style="padding:20px 0; color:var(--accent);">Загружаем полный текст статьи...</div>
+    <div class="news-modal-text">
+      ${news.fullText || `<p>${escapeHtml(news.description || 'Текст новости формируется.')}</p>`}
     </div>
 
     <div class="modal-actions-box" style="margin-top:14px;">
@@ -381,22 +381,6 @@ async function openNewsModal(index) {
   `;
 
   modal.style.display = "flex";
-
-  // Подтягиваем полный текст из воркера
-  try {
-    const res = await fetch(`${API_BASE}/api/news-details?url=${encodeURIComponent(news.link)}`);
-    const data = await res.json();
-    const bodyEl = document.getElementById("full-news-body");
-    
-    if (bodyEl && data.content && data.content.length > 50) {
-      bodyEl.innerHTML = data.content;
-    } else if (bodyEl) {
-      bodyEl.innerHTML = `<p>${escapeHtml(news.description || '')}</p>`;
-    }
-  } catch (_) {
-    const bodyEl = document.getElementById("full-news-body");
-    if (bodyEl) bodyEl.innerHTML = `<p>${escapeHtml(news.description || '')}</p>`;
-  }
 }
 
 async function loadGiveaways() {
