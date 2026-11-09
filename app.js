@@ -26,11 +26,8 @@ function openExternalLink(url, e) {
   }
 }
 
-let activeTab = "giveaways";
-let currentSort = "DealRating";
-let currentCollection = "all";
-let countdownInterval = null;
 let cachedDeals = [];
+let cachedNews = [];
 
 const USD_TO_RUB = 95;
 
@@ -310,13 +307,14 @@ async function loadNews() {
   try {
     const res = await fetch(`${API_BASE}/api/news`);
     const data = await res.json();
+    cachedNews = data.items || [];
     
-    if (!data.items || !data.items.length) {
+    if (!cachedNews.length) {
       container.innerHTML = '<div class="empty">Не удалось найти свежие новости.</div>';
       return;
     }
 
-    container.innerHTML = data.items.map(news => {
+    container.innerHTML = cachedNews.map((news, index) => {
       let dateStr = "Сегодня";
       try {
         const d = new Date(news.pubDate);
@@ -325,8 +323,9 @@ async function loadNews() {
         }
       } catch (_) {}
 
+      // Клик теперь вызывает окно openNewsModal вместо внешней ссылки
       return `
-        <div class="news-card" onclick="openExternalLink('${news.link}', event)">
+        <div class="news-card" onclick="openNewsModal(${index})">
           <img class="news-thumb" src="${news.thumbnail}" alt="news" onerror="this.src='https://via.placeholder.com/600x338?text=Gaming+News'">
           <div class="news-info">
             <h3 class="news-title">${escapeHtml(news.title)}</h3>
@@ -338,6 +337,45 @@ async function loadNews() {
   } catch (err) {
     container.innerHTML = '<div class="empty">Ошибка загрузки новостей</div>';
   }
+}
+
+// Открытие статьи во всплывающем окне прямо в приложении
+function openNewsModal(index) {
+  const news = cachedNews[index];
+  if (!news) return;
+
+  const modal = document.getElementById("news-modal");
+  const content = document.getElementById("news-modal-content");
+  if (!modal || !content) return;
+
+  let dateStr = "Сегодня";
+  try {
+    const d = new Date(news.pubDate);
+    if (!isNaN(d.getTime())) {
+      dateStr = d.toLocaleString("ru-RU", { day: 'numeric', month: 'long', hour: '2-digit', minute:'2-digit' });
+    }
+  } catch (_) {}
+
+  content.innerHTML = `
+    <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 8px;color:#fff;padding-right:30px;line-height:1.3;">
+      ${escapeHtml(news.title)}
+    </h2>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;">🕒 ${dateStr}</div>
+    
+    ${news.thumbnail ? `<img src="${news.thumbnail}" style="width:100%; border-radius:10px; margin-bottom:14px; aspect-ratio:16/9; object-fit:cover;">` : ''}
+
+    <div class="news-modal-text">
+      ${news.description || 'Текст новости доступен на сайте источника.'}
+    </div>
+
+    <div class="modal-actions-box">
+      <button class="modal-keys-btn" onclick="openExternalLink('${news.link}', event)">
+        🌐 Читать оригинал на 3DNews
+      </button>
+    </div>
+  `;
+
+  modal.style.display = "flex";
 }
 
 async function loadGiveaways() {
@@ -659,6 +697,26 @@ function init() {
       modal.style.display = "none";
       const video = modal.querySelector("video");
       if (video) video.pause();
+    }
+  });
+
+  document.getElementById("game-modal")?.addEventListener("click", e => {
+    if (e.target.id === "game-modal") {
+      e.target.style.display = "none";
+      const video = e.target.querySelector("video");
+      if (video) video.pause();
+    }
+  });
+
+  // Закрытие модального окна новости
+  document.getElementById("close-news-modal-btn")?.addEventListener("click", () => {
+    const modal = document.getElementById("news-modal");
+    if (modal) modal.style.display = "none";
+  });
+
+  document.getElementById("news-modal")?.addEventListener("click", e => {
+    if (e.target.id === "news-modal") {
+      e.target.style.display = "none";
     }
   });
 
