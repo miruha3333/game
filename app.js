@@ -1,6 +1,5 @@
 const API_BASE = "https://game.sergvolk504.workers.dev";
 
-// Инициализация Telegram WebApp (если открыто внутри Telegram)
 if (window.Telegram?.WebApp) {
   try {
     window.Telegram.WebApp.ready();
@@ -12,6 +11,13 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
   }[char]));
+}
+
+function sanitizeRichHtml(html) {
+  return String(html ?? "")
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/on\w+="[^"]*"/gi, "")
+    .replace(/on\w+='[^']*'/gi, "");
 }
 
 function openExternalLink(url, e) {
@@ -40,22 +46,22 @@ function formatPrice(usd) {
   return `${rub} ₽ ($${num.toFixed(2)})`;
 }
 
-// 1. ДЕТЕКТОР САНКЦИЙ
-const RESTRICTED_KEYWORDS = [
+// 1. ДЕТЕКТОР РЕГИОНАЛЬНЫХ ОГРАНИЧЕНИЙ (БЕЗ ЛОЖНОЙ КАТЕГОРИЧНОСТИ)
+const RESTRICTED_PUBLISHERS = [
   "sony", "playstation", "electronic arts", "ea sports", "ubisoft",
   "assassin's", "far cry", "microsoft", "xbox", "forza", "halo",
   "rockstar", "gta", "red dead", "capcom", "resident evil", "monster hunter",
   "square enix", "final fantasy", "sega", "yakuza", "persona", "warner bros",
   "batman", "hogwarts", "bethesda", "fallout", "elder scrolls", "doom",
-  "activision", "call of duty", "blizzard", "diablo", "warcraft", "2k", "mafia", "borderlands"
+  "activision", "call of duty", "blizzard", "diablo", "2k", "mafia", "borderlands"
 ];
 
-function checkSanctions(title, desc) {
-  const text = (String(title || "") + " " + String(desc || "")).toLowerCase();
-  return RESTRICTED_KEYWORDS.some(kw => text.includes(kw));
+function checkSanctions(title) {
+  const text = String(title || "").toLowerCase();
+  return RESTRICTED_PUBLISHERS.some(kw => text.includes(kw));
 }
 
-// 2. ИЗБРАННОЕ (WATCHLIST)
+// 2. ИЗБРАННОЕ (ПОЛНОЕ СОХРАНЕНИЕ ВСЕХ ПАРАМЕТРОВ)
 function getWatchlist() {
   try { return JSON.parse(localStorage.getItem("game_deals_watchlist") || "[]"); } 
   catch (_) { return []; }
@@ -68,21 +74,21 @@ function saveWatchlist(list) {
 }
 
 function isFavorite(id) {
-  return getWatchlist().some(item => item.id === String(id));
+  return getWatchlist().some(item => String(item.id) === String(id));
 }
 
 function toggleFavorite(gameObj, e) {
   if (e) e.stopPropagation();
   let list = getWatchlist();
-  const idStr = String(gameObj.id);
+  const idStr = String(gameObj.id || gameObj.dealId);
 
   if (list.some(item => item.id === idStr)) {
     list = list.filter(item => item.id !== idStr);
   } else {
     list.push({
       id: idStr,
-      gameId: gameObj.gameId || "",
-      steamAppId: gameObj.steamAppId || "",
+      gameId: String(gameObj.gameId || ""),
+      steamAppId: String(gameObj.steamAppId || ""),
       title: gameObj.title,
       thumb: gameObj.thumb,
       salePriceUsd: Number(gameObj.salePriceUsd || 0),
@@ -127,7 +133,7 @@ function renderWatchlist() {
   }
 
   container.innerHTML = list.map(d => {
-    const buyUrl = d.steamUrl || `https://store.steampowered.com/app/${d.steamAppId || ''}`;
+    const buyUrl = d.steamUrl || (d.steamAppId ? `https://store.steampowered.com/app/${d.steamAppId}` : "https://store.steampowered.com");
     const safeTitle = encodeURIComponent(d.title || "Игра");
     const safeThumb = encodeURIComponent(d.thumb || "");
 
@@ -137,7 +143,8 @@ function renderWatchlist() {
         <div class="deal-info">
           <div class="deal-title">${escapeHtml(d.title)}</div>
           <div class="deal-meta">
-            <span style="color:var(--accent);">Скидка активна!</span>
+            ${d.savingsPct > 0 ? `<span class="deal-discount-badge">-${d.savingsPct}%</span>` : ''}
+            <span style="color:var(--accent);">В списке отслеживания</span>
           </div>
         </div>
         <div class="deal-pricing">
@@ -145,7 +152,7 @@ function renderWatchlist() {
             <span class="old-price">${formatPrice(d.normalPriceUsd)}</span>
             <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
           </div>
-          <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">Купить</button>
+          <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">В Steam</button>
           <button class="favorite-btn active" onclick="toggleFavorite({ id: '${d.id}' }, event)">❤️</button>
         </div>
       </div>
@@ -153,7 +160,7 @@ function renderWatchlist() {
   }).join("");
 }
 
-// 3. МОДАЛЬНОЕ ОКНО ДОСЬЕ ИГРЫ (МГНОВЕННОЕ ОТКРЫТИЕ БЕЗ ЗАВИСАНИЙ)
+// 3. ДОСЬЕ ИГРЫ (С ИСТОРИЧЕСКИМ МИНИМУМОМ И ЯЗЫКОМ)
 async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleRaw, thumbRaw) {
   const modal = document.getElementById("game-modal");
   const content = document.getElementById("modal-content");
@@ -171,9 +178,8 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
   
   const keysUrl = `https://plati.market/itm/${encodeURIComponent(title)}`;
   const priceDisplay = currentPriceUsd && currentPriceUsd !== "undefined" ? ` — ${formatPrice(currentPriceUsd)}` : "";
-  const isRestricted = checkSanctions(title, "");
+  const mightBeRestricted = checkSanctions(title);
 
-  // МГНОВЕННО показываем заголовок, обложку и кнопки покупки
   content.innerHTML = `
     <h2 style="font-family:'Oswald',sans-serif;font-size:20px;margin:0 0 10px;color:#fff;padding-right:30px;">
       ${escapeHtml(title)}
@@ -183,21 +189,26 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
       ${thumb ? `<img src="${escapeHtml(thumb)}" style="width:100%; border-radius:10px; margin-bottom:12px; aspect-ratio:16/9; object-fit:cover;">` : ""}
     </div>
 
-    ${isRestricted 
-      ? `<div class="sanction-badge danger">🚫 Недоступно в РФ (Санкции)</div>`
-      : `<div class="sanction-badge success">🟢 Доступно в РФ (Можно купить)</div>`}
+    ${mightBeRestricted 
+      ? `<div class="sanction-badge danger">⚠️ Возможны ограничения в РФ (Издатель ушел с рынка)</div>`
+      : `<div class="sanction-badge success">ℹ️ Прямых ограничений не выявлено (Проверяйте в Steam)</div>`}
 
     <div class="lang-badge">
       <span>🌐</span>
-      <strong id="modal-lang-text">Русский язык уточняется</strong>
+      <strong id="modal-lang-text">Определяем наличие русского языка...</strong>
+    </div>
+
+    <div id="modal-hist-box" class="lang-badge" style="display:none;background:rgba(245,158,11,0.15);color:#f59e0b;border-color:rgba(245,158,11,0.3);">
+      <span>📉 Исторический минимум:</span>
+      <strong id="modal-hist-text">-</strong>
     </div>
 
     <div class="modal-actions-box">
       <button class="modal-primary-buy-btn" onclick="openExternalLink('${steamUrl}', event)">
-        <span>🛒 КУПИТЬ В STEAM${priceDisplay}</span>
+        <span>🛒 СТРАНИЦА В STEAM${priceDisplay}</span>
       </button>
       <button class="modal-keys-btn" onclick="openExternalLink('${keysUrl}', event)">
-        <span>🔑 Найти ключ дешевле (Plati / Габестор)</span>
+        <span>🔑 Найти ключ на Plati / Маркетах</span>
       </button>
     </div>
 
@@ -206,7 +217,6 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
     </div>
   `;
 
-  // Фоном подтягиваем скриншоты и видео, если они доступны
   try {
     const res = await fetch(`${API_BASE}/api/game-details?gameId=${encodeURIComponent(gameId || '')}&steamAppId=${encodeURIComponent(finalSteamId)}&title=${encodeURIComponent(title)}`);
     const data = await res.json();
@@ -214,9 +224,16 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
     const mediaBox = document.getElementById("modal-media-box");
     const descBox = document.getElementById("modal-desc-box");
     const langText = document.getElementById("modal-lang-text");
+    const histBox = document.getElementById("modal-hist-box");
+    const histText = document.getElementById("modal-hist-text");
 
     if (langText && data.russianSupport) {
       langText.textContent = data.russianSupport;
+    }
+
+    if (histBox && histText && data.historicalLowUsd) {
+      histBox.style.display = "inline-flex";
+      histText.textContent = formatPrice(data.historicalLowUsd);
     }
 
     if (mediaBox && data.trailerVideo) {
@@ -247,7 +264,7 @@ async function openGameModal(dealId, gameId, steamAppId, currentPriceUsd, titleR
   }
 }
 
-// 4. МОДАЛЬНОЕ ОКНО СТАТЬИ НОВОСТЕЙ (СО ВСЕМИ АБЗАЦАМИ)
+// 4. ОКНО НОВОСТЕЙ С УКАЗАНИЕМ ИСТОЧНИКА
 async function openNewsModal(index) {
   const news = cachedNews[index];
   if (!news) return;
@@ -265,12 +282,12 @@ async function openNewsModal(index) {
   } catch (_) {}
 
   modal.style.display = "flex";
-
-  const initialText = news.fullText || news.description || 'Текст статьи формируется.';
+  const sourceName = news.sourceName || "Игровые новости";
+  const initialText = news.fullText || news.description || 'Текст новости формируется.';
 
   content.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-right:30px;">
-      <span style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">✍️ РЕДАКЦИЯ GAME DEALS</span>
+      <span style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;">📌 ИСТОЧНИК: ${escapeHtml(sourceName)}</span>
       <span style="font-size:11px;color:var(--text-dim);">🕒 ${dateStr}</span>
     </div>
 
@@ -281,31 +298,34 @@ async function openNewsModal(index) {
     ${news.thumbnail ? `<img src="${news.thumbnail}" style="width:100%; border-radius:10px; margin-bottom:14px; aspect-ratio:16/9; object-fit:cover;">` : ''}
 
     <div id="full-news-body" class="news-modal-text">
-      ${initialText.startsWith('<p>') ? initialText : `<p>${initialText}</p>`}
+      ${sanitizeRichHtml(initialText.startsWith('<p>') ? initialText : `<p>${initialText}</p>`)}
     </div>
 
     <div class="modal-actions-box" style="margin-top:14px;">
-      <button class="modal-primary-buy-btn" onclick="document.getElementById('news-modal').style.display='none'">
-        ✕ ЗАКРЫТЬ СТАТЬЮ
+      <button class="modal-keys-btn" onclick="openExternalLink('${news.link}', event)">
+        ↗ Читать оригинал на ${escapeHtml(sourceName)}
+      </button>
+      <button class="modal-primary-buy-btn" style="background:#242f42;color:#fff;" onclick="document.getElementById('news-modal').style.display='none'">
+        ✕ Закрыть
       </button>
     </div>
   `;
 
-  // Если статья короткая (меньше 300 символов), догружаем все абзацы статьи из первоисточника
+  // Догрузка абзацев статьи
   const plainTextLength = initialText.replace(/<[^>]+>/g, "").trim().length;
-  if (plainTextLength < 300 && news.link) {
+  if (plainTextLength < 350 && news.link) {
     try {
       const res = await fetch(`${API_BASE}/api/news-details?url=${encodeURIComponent(news.link)}`);
       const data = await res.json();
       const bodyEl = document.getElementById("full-news-body");
       if (bodyEl && data.content && data.content.length > 50) {
-        bodyEl.innerHTML = data.content;
+        bodyEl.innerHTML = sanitizeRichHtml(data.content);
       }
     } catch (_) {}
   }
 }
 
-// 5. ТАБЫ И ЗАГРУЗКА СПИСКОВ
+// 5. ТАБЫ И ЗАГРУЗКА
 function switchTab(tab) {
   activeTab = tab;
   ["giveaways", "deals", "search", "watchlist", "news"].forEach(t => {
@@ -339,7 +359,7 @@ async function loadGiveaways() {
   const upcomingList = data.upcoming || [];
 
   if (!activeList.length) {
-    activeContainer.innerHTML = '<div class="empty">Прямо сейчас раздача завершилась. Следующая игра откроется в четверг!</div>';
+    activeContainer.innerHTML = '<div class="empty">Активных раздач прямо сейчас нет. Новые появятся скоро!</div>';
   } else {
     activeContainer.innerHTML = activeList.map(game => `
       <div class="giveaway-card">
@@ -348,7 +368,7 @@ async function loadGiveaways() {
           <h3 class="giveaway-title">${escapeHtml(game.title)}</h3>
           <div class="giveaway-desc">${escapeHtml(game.description || "Бесплатная раздача игры")}</div>
           <div class="giveaway-footer">
-            <div class="giveaway-timer" data-end-time="${game.endDate || ''}">Загрузка таймера...</div>
+            <div class="giveaway-timer" data-end-time="${game.endDate || ''}">Срок уточняется</div>
             <button class="claim-btn" onclick="openExternalLink('${game.storeUrl}', event)">Забрать (0₽)</button>
           </div>
         </div>
@@ -391,14 +411,14 @@ function startTimers() {
   function update() {
     document.querySelectorAll(".giveaway-timer").forEach(el => {
       const rawEnd = el.getAttribute("data-end-time");
-      if (!rawEnd || rawEnd === "undefined" || rawEnd === "null" || rawEnd === "") {
-        el.textContent = "⏳ До четверга (19:00 МСК)";
+      if (!rawEnd) {
+        el.textContent = "⏳ До окончания акции";
         return;
       }
 
       const end = new Date(rawEnd).getTime();
       if (isNaN(end)) {
-        el.textContent = "⏳ До четверга (19:00 МСК)";
+        el.textContent = "⏳ До окончания акции";
         return;
       }
 
@@ -410,8 +430,8 @@ function startTimers() {
 
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      const minutes = Math.floor((diff % (1000 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % 1000) / 1000);
 
       el.textContent = `⏳ ${days}д ${hours}ч ${minutes}м ${seconds}с`;
     });
@@ -421,7 +441,7 @@ function startTimers() {
   countdownInterval = setInterval(update, 1000);
 }
 
-// 6. ТЕМАТИЧЕСКИЕ ПОДБОРКИ И СКИДКИ
+// 6. ТЕМАТИЧЕСКИЕ ПОДБОРКИ И СОРТИРОВКА (С ПОДДЕРЖКОЙ DEALRATING)
 function applyFiltersAndRender() {
   let filtered = [...cachedDeals];
 
@@ -429,23 +449,26 @@ function applyFiltersAndRender() {
     filtered = filtered.filter(d => (Number(d.salePriceUsd) * USD_TO_RUB) <= 300);
   } 
   else if (currentCollection === "coop") {
-    const kws = ["co-op", "coop", "multiplayer", "party", "takes two", "overcooked", "portal", "left 4 dead", "helldivers", "payday", "borderlands", "halo", "lethal company", "phasmophobia", "sea of thieves"];
+    const kws = ["co-op", "coop", "multiplayer", "party", "takes two", "overcooked", "portal", "left 4 dead", "helldivers", "payday", "borderlands", "halo"];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
   } 
   else if (currentCollection === "rpg") {
-    const kws = ["rpg", "witcher", "cyberpunk", "fallout", "elder scrolls", "skyrim", "dragon", "persona", "yakuza", "baldur", "mass effect", "souls", "elden", "diablo"];
+    const kws = ["rpg", "witcher", "cyberpunk", "fallout", "elder scrolls", "skyrim", "persona", "yakuza", "baldur", "souls", "elden"];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
   } 
   else if (currentCollection === "horror") {
-    const kws = ["horror", "resident evil", "silent hill", "outlast", "amnesia", "dead space", "fear", "zombie", "evil within", "fnaf", "alien", "alan wake"];
+    const kws = ["horror", "resident evil", "silent hill", "outlast", "amnesia", "dead space", "fear", "zombie", "evil within"];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
   } 
   else if (currentCollection === "action") {
-    const kws = ["action", "shooter", "call of duty", "doom", "battlefield", "gta", "red dead", "assassin", "far cry", "batman", "spider-man", "god of war"];
+    const kws = ["action", "shooter", "doom", "battlefield", "gta", "red dead", "assassin", "spider-man", "god of war"];
     filtered = filtered.filter(d => kws.some(kw => d.title.toLowerCase().includes(kw)));
   }
 
-  if (currentSort === "Savings") {
+  // Явная сортировка, включая DealRating
+  if (currentSort === "DealRating") {
+    filtered.sort((a, b) => Number(b.dealRating || 0) - Number(a.dealRating || 0));
+  } else if (currentSort === "Savings") {
     filtered.sort((a, b) => b.savingsPct - a.savingsPct);
   } else if (currentSort === "Price") {
     filtered.sort((a, b) => Number(a.salePriceUsd) - Number(b.salePriceUsd));
@@ -461,7 +484,7 @@ function renderDealsList(deals) {
   if (!container) return;
 
   if (!deals.length) {
-    container.innerHTML = '<div class="empty">В этой категории пока пусто. Попробуйте другой фильтр.</div>';
+    container.innerHTML = '<div class="empty">Скидки временно обновляются на стороне Steam. Попробуйте обновить чуть позже.</div>';
     return;
   }
 
@@ -488,7 +511,17 @@ function renderDealsList(deals) {
             <span class="new-price">${formatPrice(d.salePriceUsd)}</span>
           </div>
           <button class="quick-buy-btn" onclick="openExternalLink('${buyUrl}', event)">Купить</button>
-          <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite({ id: '${d.dealId}', title: '${escapeHtml(d.title)}', thumb: '${d.thumb}', salePriceUsd: '${d.salePriceUsd}', normalPriceUsd: '${d.normalPriceUsd}' }, event)">
+          <button class="favorite-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite({
+            id: '${d.dealId}',
+            gameId: '${d.gameId || ''}',
+            steamAppId: '${d.steamAppId || ''}',
+            steamUrl: '${buyUrl}',
+            title: '${escapeHtml(d.title)}',
+            thumb: '${d.thumb}',
+            salePriceUsd: '${d.salePriceUsd}',
+            normalPriceUsd: '${d.normalPriceUsd}',
+            savingsPct: ${d.savingsPct}
+          }, event)">
             ${isFav ? '❤️' : '🤍'}
           </button>
         </div>
@@ -501,7 +534,7 @@ async function loadDeals(showLoader = true) {
   const container = document.getElementById("deals-list");
   if (!container) return;
   if (showLoader && !cachedDeals.length) {
-    container.innerHTML = '<div class="loading">Загружаем скидки из Steam...</div>';
+    container.innerHTML = '<div class="loading">Получаем скидки от 30%...</div>';
   }
 
   try {
@@ -520,9 +553,8 @@ async function loadDeals(showLoader = true) {
 async function loadNews() {
   const container = document.getElementById("news-list");
   if (!container) return;
-  if (container.innerHTML.includes("news-card")) return;
 
-  container.innerHTML = '<div class="loading">Читаем свежие новости...</div>';
+  container.innerHTML = '<div class="loading">Читаем свежие игровые публикации...</div>';
 
   try {
     const res = await fetch(`${API_BASE}/api/news`);
@@ -548,7 +580,7 @@ async function loadNews() {
           <img class="news-thumb" src="${news.thumbnail}" alt="news" onerror="this.src='https://via.placeholder.com/600x338?text=Gaming+News'">
           <div class="news-info">
             <h3 class="news-title">${escapeHtml(news.title)}</h3>
-            <div class="news-date">🕒 ${dateStr}</div>
+            <div class="news-date">🕒 ${dateStr} • ${escapeHtml(news.sourceName || 'Новости')}</div>
           </div>
         </div>
       `;
@@ -558,13 +590,14 @@ async function loadNews() {
   }
 }
 
+// 7. НАСТОЯЩИЙ ПОИСК С ЛУЧШИМИ ЦЕНАМИ
 async function handleSearch() {
   const input = document.getElementById("search-input");
   const query = input?.value?.trim();
   const container = document.getElementById("search-results-list");
 
   if (!query || !container) return;
-  container.innerHTML = '<div class="loading">Ищем лучшую цену...</div>';
+  container.innerHTML = '<div class="loading">Ищем лучшую цену по магазинам...</div>';
 
   try {
     const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
@@ -577,7 +610,10 @@ async function handleSearch() {
     }
 
     container.innerHTML = results.map(g => {
-      const buyUrl = g.steamAppId ? `https://store.steampowered.com/app/${g.steamAppId}` : "https://store.steampowered.com";
+      const buyUrl = g.cheapestDealId 
+        ? `https://www.cheapshark.com/redirect?dealID=${g.cheapestDealId}`
+        : (g.steamAppId ? `https://store.steampowered.com/app/${g.steamAppId}` : "https://store.steampowered.com");
+      
       const safeTitle = encodeURIComponent(g.title || "");
       const safeThumb = encodeURIComponent(g.thumb || "");
       
@@ -586,7 +622,7 @@ async function handleSearch() {
           <img class="deal-thumb" src="${g.thumb}" alt="${escapeHtml(g.title)}" onerror="this.style.display='none'">
           <div class="deal-info">
             <div class="deal-title">${escapeHtml(g.title)}</div>
-            <div class="deal-meta"><span>Нажмите для сравнения цен</span></div>
+            <div class="deal-meta"><span>Минимальная цена на рынке</span></div>
           </div>
           <div class="deal-pricing">
             <span class="new-price">${formatPrice(g.cheapestPriceUsd)}</span>
@@ -596,14 +632,40 @@ async function handleSearch() {
       `;
     }).join("");
   } catch (err) {
-    container.innerHTML = '<div class="empty">Ошибка поиска</div>';
+    container.innerHTML = '<div class="empty">Ошибка поиска цен</div>';
   }
 }
 
-// 7. ИНИЦИАЛИЗАЦИЯ
+// 8. ИНИЦИАЛИЗАЦИЯ И ШЕРИНГ ВИШЛИСТА
 function init() {
   updateWatchlistBadge();
 
+  // Реализация кнопки "Поделиться вишлистом"
+  const shareBtn = document.getElementById("share-watchlist-btn");
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const list = getWatchlist();
+      if (!list.length) {
+        alert("В вишлисте пока нет игр для отправки!");
+        return;
+      }
+
+      const text = "🎮 Мой список желаемых игр:\n" + 
+        list.slice(0, 5).map(g => `• ${g.title} (${formatPrice(g.salePriceUsd)})`).join("\n") +
+        (list.length > 5 ? `\n...и ещё ${list.length - 5} игр` : "");
+
+      if (window.Telegram?.WebApp?.openTelegramLink) {
+        window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent("https://t.me/your_bot_name")}&text=${encodeURIComponent(text)}`);
+      } else if (navigator.share) {
+        navigator.share({ title: "Мой список желаемого", text });
+      } else {
+        navigator.clipboard.writeText(text);
+        alert("Список игр скопирован в буфер обмена!");
+      }
+    };
+  }
+
+  // Калькулятор пополнения
   const calcModal = document.getElementById("calc-modal");
   const openCalcBtn = document.getElementById("open-calc-btn");
   const closeCalcBtn = document.getElementById("close-calc-btn");
@@ -614,7 +676,7 @@ function init() {
 
   function updateCalc() {
     const val = Number(calcInput.value) || 0;
-    const finalAmount = Math.round(val * 1.15);
+    const finalAmount = Math.round(val * 1.15); // ~15% усреднённая комиссия
     calcResult.textContent = calcRegion === "RU" ? `${finalAmount} ₽` : `${finalAmount} ₸`;
   }
 
@@ -633,7 +695,7 @@ function init() {
   });
 
   document.getElementById("calc-pay-btn")?.addEventListener("click", () => {
-    openExternalLink("https://store.steampowered.com"); 
+    openExternalLink("https://plati.market/cat/steam-cards/22812"); // Прямая ссылка на надежную витрину ваучеров и пополнений
   });
 
   document.getElementById("tab-giveaways")?.addEventListener("click", () => switchTab("giveaways"));
